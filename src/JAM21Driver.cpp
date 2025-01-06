@@ -31,9 +31,10 @@ JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llv
 		       std::unique_ptr<ModuleInfo> MI)
 	: GenMCDriver(conf, std::move(mod), std::move(MI))
 {
+	llvm::outs() << "Init JAM21 driver\n";
+
 	auto &g = getGraph();
 
-	llvm::outs() << "JAM21Driver\n";
 	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::psc, false);
 	g.addCalculator(std::make_unique<VOCalculator>(g),
@@ -65,11 +66,6 @@ void JAM21Driver::calcBasicViews(EventLabel *lab)
 
 	View hb = calcBasicHbView(lab->getPos());
 	View porf = calcBasicPorfView(lab->getPos());
-
-	llvm::outs() << g << "\n";
-	llvm::outs() << "hb   " << hb << "\n";
-	llvm::outs() << "porf " << porf << "\n";
-	llvm::outs() << "--------------------------------\n";
 
 	lab->setHbView(std::move(hb));
 	lab->setPorfView(std::move(porf));
@@ -217,18 +213,19 @@ void JAM21Driver::calcRaView(EventLabel *lab) {
 	auto secondEvent = third->getPos().prev();
 	if (secondEvent.index < 0) return;
     auto second = g.getEventLabel(secondEvent);
+
+	if (!(second->isAtLeastAcquire() || second->isAtLeastRelease())) return;
 	
 	auto firstEvent = secondEvent.prev();
 	if (firstEvent.index < 0) return;
 	auto first = g.getEventLabel(firstEvent);
 
-	llvm::outs() << "Checking RA for " << first->getPos() << " -> " << second->getPos() << " -> " << third->getPos() << "\n";
+	llvm::outs() << "Ra found: " << first->getPos() << " -> " << third->getPos() << "\n";
 }
 
 void JAM21Driver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* deps ignored */
 {
 	const auto &g = getGraph();
-	calcRaView(lab);
 
 	switch (lab->getKind()) {
 	case EventLabel::EL_Read:
@@ -308,6 +305,12 @@ void JAM21Driver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* de
 	default:
 		BUG();
 	}
+
+	llvm::outs() << g;
+
+	llvm::outs() << "-----------------------------------------------\n";
+
+	calcRaView(lab);
 }
 
 bool JAM21Driver::areInDataRace(const MemAccessLabel *aLab, const MemAccessLabel *bLab)
