@@ -88,7 +88,8 @@ libgenmc_a_SOURCES = \
   VectorClock.hpp VectorClock.cpp \
   View.hpp View.cpp \
   VSet.hpp VSet.tcc \
-  XBCalculator.hpp XBCalculator.cpp
+  XBCalculator.hpp XBCalculator.cpp \
+  JAM21Driver.hpp JAM21Driver.cpp
 
 
 AM_CXXFLAGS = -Wno-unknown-warning-option -DINCLUDE_DIR=\"$(pkgincludedir)/$(pkg)\" -DSRC_INCLUDE_DIR=\"$(abs_top_builddir)/include\"
