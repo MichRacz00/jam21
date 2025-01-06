@@ -391,8 +391,6 @@ Calculator::CalculationResult PSCCalculator::doCalc()
 	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
 	auto &coRelation = g.getPerLocRelation(ExecutionGraph::RelationId::co);
 
-	llvm::outs() << "PSC Calculator doCalc()\n";
-
 	hbRelation.transClosure();
 	if (!hbRelation.isIrreflexive())
 		return Calculator::CalculationResult(false, false);

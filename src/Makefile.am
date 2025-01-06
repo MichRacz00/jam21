@@ -89,7 +89,8 @@ libgenmc_a_SOURCES = \
   View.hpp View.cpp \
   VSet.hpp VSet.tcc \
   XBCalculator.hpp XBCalculator.cpp \
-  JAM21Driver.hpp JAM21Driver.cpp
+  JAM21Driver.hpp JAM21Driver.cpp \
+  VOCalculator.hpp VOCalculator.cpp
 
 
 AM_CXXFLAGS = -Wno-unknown-warning-option -DINCLUDE_DIR=\"$(pkgincludedir)/$(pkg)\" -DSRC_INCLUDE_DIR=\"$(abs_top_builddir)/include\"

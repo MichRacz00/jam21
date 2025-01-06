@@ -48,9 +48,10 @@ private:
 	void calcFenceViews(FenceLabel *lab);
 	void calcStartViews(ThreadStartLabel *lab);
 	void calcJoinViews(ThreadJoinLabel *lab);
-	void calcFenceRelRfPoBefore(Event last, View &v);
+    void calcRaView(EventLabel *lab);
+    void calcFenceRelRfPoBefore(Event last, View &v);
 
-	/* Returns true if aLab and bLab are in an JAM21 data race*/
+    /* Returns true if aLab and bLab are in an JAM21 data race*/
 	bool areInDataRace(const MemAccessLabel *aLab, const MemAccessLabel *bLab);
 
 	/* Returns an event that is racy with rLab, or INIT if none is found */

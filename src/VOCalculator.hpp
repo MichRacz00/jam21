@@ -81,7 +81,8 @@ private:
 	void addSbHbEdges(Calculator::GlobalRelation &matrix) const;
 
 	Calculator::CalculationResult addPscConstraints();
-	void calcPscRelation();
+    void calcRaRelation();
+    void calcPscRelation();
 };
 
 #endif /* __PSC_CALCULATOR_HPP__ */

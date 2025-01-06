@@ -787,17 +787,11 @@ bool ExecutionGraph::doFinalConsChecks(bool checkFull /* = false */)
 
 bool ExecutionGraph::isConsistent(CheckConsType checkT)
 {
-	llvm::outs() << "ExecutionGraph isConsistent()\n";
-
-	llvm::outs() << getFPResult().cons << "\n";
-
 	/* Fastpath: We have cached info or no fixpoint is required */
 	if (getFPStatus() == FS_Done && getFPType() == checkT)
 		return getFPResult().cons;
 	if (checkT == CheckConsType::fast)
 		return true;
-
-	llvm::outs() << "Slowpath\n";
 	
 	/* Slowpath: Go calculate fixpoint */
 	setFPStatus(FS_InProgress);

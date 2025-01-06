@@ -24,7 +24,7 @@
 #include "Interpreter.h"
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
-#include "PSCCalculator.hpp"
+#include "VOCalculator.hpp"
 #include "PersistencyChecker.hpp"
 
 JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llvm::Module> mod,
@@ -33,10 +33,11 @@ JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llv
 {
 	auto &g = getGraph();
 
-	/* RC11 requires the calculation of PSC */
 	llvm::outs() << "JAM21Driver\n";
-	g.addCalculator(std::make_unique<PSCCalculator>(g),
+	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::psc, false);
+	g.addCalculator(std::make_unique<VOCalculator>(g),
+			ExecutionGraph::RelationId::ra, false);
 	return;
 }
 
@@ -46,7 +47,7 @@ View JAM21Driver::calcBasicHbView(Event e) const
 	View v(getGraph().getPreviousLabel(e)->getHbView());
 
 	++v[e.thread];
-	return v;
+	return v; 
 }
 
 /* Calculates a minimal (po U rf) vector clock based on po for a given label */
@@ -162,7 +163,6 @@ void JAM21Driver::calcFenceRelRfPoBefore(Event last, View &v)
 	}
 }
 
-
 void JAM21Driver::calcFenceViews(FenceLabel *lab)
 {
 	const auto &g = getGraph();
@@ -210,9 +210,25 @@ void JAM21Driver::calcJoinViews(ThreadJoinLabel *lab)
 	lab->setPorfView(std::move(porf));
 }
 
+void JAM21Driver::calcRaView(EventLabel *lab) {
+	const auto &g = getGraph();
+	auto third = lab;
+
+	auto secondEvent = third->getPos().prev();
+	if (secondEvent.index < 0) return;
+    auto second = g.getEventLabel(secondEvent);
+	
+	auto firstEvent = secondEvent.prev();
+	if (firstEvent.index < 0) return;
+	auto first = g.getEventLabel(firstEvent);
+
+	llvm::outs() << "Checking RA for " << first->getPos() << " -> " << second->getPos() << " -> " << third->getPos() << "\n";
+}
+
 void JAM21Driver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* deps ignored */
 {
 	const auto &g = getGraph();
+	calcRaView(lab);
 
 	switch (lab->getKind()) {
 	case EventLabel::EL_Read:
