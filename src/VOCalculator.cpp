@@ -356,6 +356,8 @@ void VOCalculator::calcPscRelation()
 
 void VOCalculator::calcRaRelation() {
 	auto &g = getGraph();
+	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+
 	for (const auto *lab : labels(g)) {
 		auto thirdEventLabel = lab;
 		auto secondEventLabel = g.getPreviousNonEmptyLabel(thirdEventLabel);
@@ -370,7 +372,7 @@ void VOCalculator::calcRaRelation() {
 		// The event in the middle must be rel/acq or stronger
 		if (!(secondEventLabel->isAtLeastAcquire() || secondEventLabel->isAtLeastRelease())) continue;
 
-		llvm::outs() << firstEventLabel->getPos() << " -> " << secondEventLabel->getPos() << " -> " << thirdEventLabel->getPos() << "\n";
+		raRelation.addEdge(firstEventLabel->getIndex(), thirdEventLabel->getIndex());
 	}
 }
 
@@ -392,6 +394,21 @@ Calculator::CalculationResult VOCalculator::addPscConstraints()
 	return result;
 }
 
+/*
+*	Initializes ra relation as relation possibly containing all events.
+*/
+void VOCalculator::initRaRelation() {
+	auto &g = getGraph();
+	std::vector<Event> allEvents;
+
+	for (const auto *lab : labels(g)) {
+		allEvents.push_back(lab->getPos());
+	}
+
+	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+	raRelation = Calculator::GlobalRelation(allEvents);
+}
+
 void VOCalculator::initCalc()
 {
 	auto &g = getGraph();
@@ -401,33 +418,31 @@ void VOCalculator::initCalc()
 	auto accesses = getGraph().getSCs();
 
 	pscRelation = Calculator::GlobalRelation(accesses.first);
+
+	initRaRelation();
+
 	return;
 }
 
 Calculator::CalculationResult VOCalculator::doCalc()
 {
-	llvm::outs() << "doCalc()\n";
+	llvm::outs() << "--------------- Called doCalc() ---------------\n";
 
 	calcRaRelation();
 
 	auto &g = getGraph();
-	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
-
-	llvm::outs() << raRelation << "\n";
-
-	//return Calculator::CalculationResult(false, true);
-	
-	//auto &g = getGraph();
 	auto &hbRelation = g.getGlobalRelation(ExecutionGraph::RelationId::hb);
-	//auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
+	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
 	auto &coRelation = g.getPerLocRelation(ExecutionGraph::RelationId::co);
+
+	llvm::outs() << g.getGlobalRelation(ExecutionGraph::RelationId::ra) << "\n";
 
 	hbRelation.transClosure();
 	if (!hbRelation.isIrreflexive())
 		return Calculator::CalculationResult(false, false);
 	calcPscRelation();
-	//if (!pscRelation.isIrreflexive())
-	//	return Calculator::CalculationResult(false, false);
+	if (!pscRelation.isIrreflexive())
+		return Calculator::CalculationResult(false, false);
 
 	auto result = addPscConstraints();
 	if (!result.cons)

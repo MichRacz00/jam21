@@ -81,6 +81,7 @@ private:
 	void addSbHbEdges(Calculator::GlobalRelation &matrix) const;
 
 	Calculator::CalculationResult addPscConstraints();
+    void initRaRelation();
     void calcRaRelation();
     void calcPscRelation();
 };
