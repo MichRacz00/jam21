@@ -357,7 +357,20 @@ void VOCalculator::calcPscRelation()
 void VOCalculator::calcRaRelation() {
 	auto &g = getGraph();
 	for (const auto *lab : labels(g)) {
-		llvm::outs() << lab->getPos();
+		auto thirdEventLabel = lab;
+		auto secondEventLabel = g.getPreviousNonEmptyLabel(thirdEventLabel);
+		auto firstEventLabel = g.getPreviousNonEmptyLabel(secondEventLabel);
+
+		// If any two relations have the same stamp,
+		// that means no more previous events in this thread,
+		// thus relation cannot exist
+		if (thirdEventLabel == secondEventLabel) continue;
+		if (secondEventLabel == firstEventLabel) continue;
+
+		// The event in the middle must be rel/acq or stronger
+		if (!(secondEventLabel->isAtLeastAcquire() || secondEventLabel->isAtLeastRelease())) continue;
+
+		llvm::outs() << firstEventLabel->getPos() << " -> " << secondEventLabel->getPos() << " -> " << thirdEventLabel->getPos() << "\n";
 	}
 }
 

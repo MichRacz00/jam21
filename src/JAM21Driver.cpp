@@ -206,23 +206,6 @@ void JAM21Driver::calcJoinViews(ThreadJoinLabel *lab)
 	lab->setPorfView(std::move(porf));
 }
 
-void JAM21Driver::calcRaView(EventLabel *lab) {
-	const auto &g = getGraph();
-	auto third = lab;
-
-	auto secondEvent = third->getPos().prev();
-	if (secondEvent.index < 0) return;
-    auto second = g.getEventLabel(secondEvent);
-
-	if (!(second->isAtLeastAcquire() || second->isAtLeastRelease())) return;
-	
-	auto firstEvent = secondEvent.prev();
-	if (firstEvent.index < 0) return;
-	auto first = g.getEventLabel(firstEvent);
-
-	llvm::outs() << "Ra found: " << first->getPos() << " -> " << third->getPos() << "\n";
-}
-
 void JAM21Driver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* deps ignored */
 {
 	const auto &g = getGraph();
@@ -309,8 +292,6 @@ void JAM21Driver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* de
 	llvm::outs() << g;
 
 	llvm::outs() << "-----------------------------------------------\n";
-
-	calcRaView(lab);
 }
 
 bool JAM21Driver::areInDataRace(const MemAccessLabel *aLab, const MemAccessLabel *bLab)
