@@ -354,6 +354,13 @@ void VOCalculator::calcPscRelation()
 	return;
 }
 
+void VOCalculator::calcRaRelation() {
+	auto &g = getGraph();
+	for (const auto *lab : labels(g)) {
+		llvm::outs() << lab->getPos();
+	}
+}
+
 Calculator::CalculationResult VOCalculator::addPscConstraints()
 {
 	auto &g = getGraph();
@@ -386,17 +393,28 @@ void VOCalculator::initCalc()
 
 Calculator::CalculationResult VOCalculator::doCalc()
 {
+	llvm::outs() << "doCalc()\n";
+
+	calcRaRelation();
+
 	auto &g = getGraph();
+	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+
+	llvm::outs() << raRelation << "\n";
+
+	//return Calculator::CalculationResult(false, true);
+	
+	//auto &g = getGraph();
 	auto &hbRelation = g.getGlobalRelation(ExecutionGraph::RelationId::hb);
-	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
+	//auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
 	auto &coRelation = g.getPerLocRelation(ExecutionGraph::RelationId::co);
 
 	hbRelation.transClosure();
 	if (!hbRelation.isIrreflexive())
 		return Calculator::CalculationResult(false, false);
 	calcPscRelation();
-	if (!pscRelation.isIrreflexive())
-		return Calculator::CalculationResult(false, false);
+	//if (!pscRelation.isIrreflexive())
+	//	return Calculator::CalculationResult(false, false);
 
 	auto result = addPscConstraints();
 	if (!result.cons)
