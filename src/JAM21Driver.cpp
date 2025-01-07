@@ -31,14 +31,10 @@ JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llv
 		       std::unique_ptr<ModuleInfo> MI)
 	: GenMCDriver(conf, std::move(mod), std::move(MI))
 {
-	llvm::outs() << "Init JAM21 driver\n";
-
 	auto &g = getGraph();
 
 	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::ra, false);
-	g.addCalculator(std::make_unique<VOCalculator>(g),
-			ExecutionGraph::RelationId::psc, false);
 	return;
 }
 
