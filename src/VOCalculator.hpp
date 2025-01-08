@@ -27,6 +27,11 @@ private:
     void initRaRelation();
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(const EventLabel *lab, int n);
     void calcRaRelation();
+    void calcSvoRelation();
+
+	bool isFence(EventLabel *lab);
+	bool isRead(EventLabel *lab);
+	bool isWrite(EventLabel *lab);
 };
 
 #endif /* __PSC_CALCULATOR_HPP__ */

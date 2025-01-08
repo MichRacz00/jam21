@@ -792,7 +792,7 @@ bool ExecutionGraph::isConsistent(CheckConsType checkT)
 		return getFPResult().cons;
 	if (checkT == CheckConsType::fast)
 		return true;
-	
+
 	/* Slowpath: Go calculate fixpoint */
 	setFPStatus(FS_InProgress);
 	doInits(checkT == CheckConsType::full);

@@ -3,7 +3,8 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "/usr/include/c++/13/ext/pb_ds/detail"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

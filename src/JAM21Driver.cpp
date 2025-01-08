@@ -35,6 +35,10 @@ JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llv
 
 	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::ra, false);
+	g.addCalculator(std::make_unique<VOCalculator>(g),
+			ExecutionGraph::RelationId::svo, false);
+	g.addCalculator(std::make_unique<VOCalculator>(g),
+			ExecutionGraph::RelationId::spush, false);
 	return;
 }
 
