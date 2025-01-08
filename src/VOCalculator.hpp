@@ -28,8 +28,12 @@ private:
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(const EventLabel *lab, int n);
     void calcRaRelation();
     void calcSvoRelation();
+    void calcSpushRelation();
+    void calcVolintRelation();
+	void calcVvoRelation();
+	void calcVoRelation();
 
-	bool isFence(EventLabel *lab);
+    bool isFence(EventLabel *lab);
 	bool isRead(EventLabel *lab);
 	bool isWrite(EventLabel *lab);
 };

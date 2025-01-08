@@ -3,9 +3,32 @@
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
 
+/**
+ * Adds all events as the set of possible events,
+ * from where relations can start.
+*/
 void VOCalculator::initCalc()
 {	
-	initRaRelation();
+	auto &g = getGraph();
+	std::vector<Event> allEvents;
+
+	for (const auto *lab : labels(g)) {
+		allEvents.push_back(lab->getPos());
+	}
+
+	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
+	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
+
+	raRelation = Calculator::GlobalRelation(allEvents);
+	svoRelation = Calculator::GlobalRelation(allEvents);
+	spushRelation = Calculator::GlobalRelation(allEvents);
+	volintRelation = Calculator::GlobalRelation(allEvents);
+	vvoRelation = Calculator::GlobalRelation(allEvents);
+	voRelation = Calculator::GlobalRelation(allEvents);
 	return;
 }
 
@@ -15,14 +38,15 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	calcRaRelation();
 	calcSvoRelation();
+	calcSpushRelation();
+	calcVolintRelation();
+	calcVvoRelation();
 
 	auto &g = getGraph();
-	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	llvm::outs() << vvoRelation << "\n";
 
-	//llvm::outs() << raRelation << "\n";
-	llvm::outs() << svoRelation << "\n";
-
-	return Calculator::CalculationResult(false, false);
+	return Calculator::CalculationResult(false, true);
 }
 
 void VOCalculator::removeAfter(const VectorClock &preds)
@@ -73,7 +97,6 @@ void VOCalculator::calcRaRelation() {
 
 		// The event in the middle must be rel/acq or stronger
 		if (!(secondEventLabel->isAtLeastAcquire() || secondEventLabel->isAtLeastRelease())) continue;
-
 		raRelation.addEdge(firstEventLabel->getPos(), thirdEventLabel->getPos());
 	}
 }
@@ -92,37 +115,70 @@ void VOCalculator::calcSvoRelation() {
 		auto secondEvent = events[3].get();
 		auto firstEvent = events[4].get();
 
-		// The second event must be an acquire fence
-		if (!(secondEvent->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(secondEvent))) continue;
+		// The second event must be a release fence
+		if (!(secondEvent->getOrdering() == llvm::AtomicOrdering::Release && isFence(secondEvent))) continue;
 
 		// The third event must be either a read or a write
 		if (!(isRead(thirdEvent) || isWrite(thirdEvent))) continue;
 
-		// The fourth event must be a release fence
-		if (!(fourthEvent->getOrdering() == llvm::AtomicOrdering::Release && isFence(fourthEvent))) continue;
+		// The fourth event must be an acquire fence
+		if (!(fourthEvent->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(fourthEvent))) continue;
 
 		svoRelation.addEdge(firstEvent->getPos(), lastEvent->getPos());
 	}
 }
 
-/**
- * Initializes ra relation as relation possibly containing all events.
-*/
-void VOCalculator::initRaRelation() {
+void VOCalculator::calcSpushRelation() {
 	auto &g = getGraph();
-	std::vector<Event> allEvents;
-
-	for (const auto *lab : labels(g)) {
-		allEvents.push_back(lab->getPos());
-	}
-
-	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
-	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
 	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
 
-	raRelation = Calculator::GlobalRelation(allEvents);
-	svoRelation = Calculator::GlobalRelation(allEvents);
-	spushRelation = Calculator::GlobalRelation(allEvents);
+	for (const auto *lab : labels(g)) {
+		auto events = getPrevMany(lab, 3);
+		if (events.empty()) continue;
+
+		auto thirdEventLabel = events[0].get();
+		auto secondEventLabel = events[1].get();
+		auto firstEventLabel = events[2].get();
+
+		// The event in the middle must be a SC fence
+		if (!(isFence(secondEventLabel) && secondEventLabel->isSC())) continue;
+
+		spushRelation.addEdge(firstEventLabel->getPos(), thirdEventLabel->getPos());
+	}
+}
+
+void VOCalculator::calcVolintRelation() {
+	auto &g = getGraph();
+	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+
+	for (const auto *lab : labels(g)) {
+		auto events = getPrevMany(lab, 2);
+		if (events.empty()) continue;
+
+		auto secondEventLabel = events[0].get();
+		auto firstEventLabel = events[1].get();
+
+		// Both events must be SC
+		if (!(firstEventLabel->isSC() && secondEventLabel->isSC())) continue;
+
+		volintRelation.addEdge(firstEventLabel->getPos(), secondEventLabel->getPos());
+	}
+}
+
+void VOCalculator::calcVvoRelation() {
+	auto &g = getGraph();
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
+	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+
+	for (const auto& node : raRelation) {
+    	for (auto adj = raRelation.adj_begin(node); adj != raRelation.adj_end(node); ++adj) {
+			vvoRelation.addEdge(node, raRelation.getElems()[*adj]);
+    	}
+	}
+}
+
+void VOCalculator::calcVoRelation() {
+
 }
 
 bool VOCalculator::isFence(EventLabel *lab) {
