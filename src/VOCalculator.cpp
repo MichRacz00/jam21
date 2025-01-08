@@ -43,7 +43,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcVvoRelation();
 
 	auto &g = getGraph();
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	llvm::outs() << vvoRelation << "\n";
 
 	return Calculator::CalculationResult(false, true);
@@ -167,12 +167,19 @@ void VOCalculator::calcVolintRelation() {
 
 void VOCalculator::calcVvoRelation() {
 	auto &g = getGraph();
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
 	for (const auto& node : raRelation) {
     	for (auto adj = raRelation.adj_begin(node); adj != raRelation.adj_end(node); ++adj) {
 			vvoRelation.addEdge(node, raRelation.getElems()[*adj]);
+    	}
+	}
+
+	for (const auto& node : svoRelation) {
+    	for (auto adj = svoRelation.adj_begin(node); adj != svoRelation.adj_end(node); ++adj) {
+			vvoRelation.addEdge(node, svoRelation.getElems()[*adj]);
     	}
 	}
 }
