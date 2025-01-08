@@ -43,7 +43,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcVvoRelation();
 
 	auto &g = getGraph();
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	llvm::outs() << vvoRelation << "\n";
 
 	return Calculator::CalculationResult(false, true);
