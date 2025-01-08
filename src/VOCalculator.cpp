@@ -43,7 +43,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcVvoRelation();
 
 	auto &g = getGraph();
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	llvm::outs() << vvoRelation << "\n";
 
 	return Calculator::CalculationResult(false, true);
@@ -169,6 +169,8 @@ void VOCalculator::calcVvoRelation() {
 	auto &g = getGraph();
 	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
 	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
 	for (const auto& node : raRelation) {
@@ -180,6 +182,18 @@ void VOCalculator::calcVvoRelation() {
 	for (const auto& node : svoRelation) {
     	for (auto adj = svoRelation.adj_begin(node); adj != svoRelation.adj_end(node); ++adj) {
 			vvoRelation.addEdge(node, svoRelation.getElems()[*adj]);
+    	}
+	}
+
+	for (const auto& node : spushRelation) {
+    	for (auto adj = spushRelation.adj_begin(node); adj != spushRelation.adj_end(node); ++adj) {
+			vvoRelation.addEdge(node, spushRelation.getElems()[*adj]);
+    	}
+	}
+
+	for (const auto& node : volintRelation) {
+    	for (auto adj = volintRelation.adj_begin(node); adj != volintRelation.adj_end(node); ++adj) {
+			vvoRelation.addEdge(node, volintRelation.getElems()[*adj]);
     	}
 	}
 }
