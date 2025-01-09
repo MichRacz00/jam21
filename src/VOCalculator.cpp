@@ -41,11 +41,13 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcSpushRelation();
 	calcVolintRelation();
 	calcVvoRelation();
+	calcVoRelation();
 
 	auto &g = getGraph();
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
-	llvm::outs() << vvoRelation << "\n";
-	//llvm::outs() << g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
+	//llvm::outs() << vvoRelation << "\n";
+	llvm::outs() << voRelation << "\n";
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -154,12 +156,12 @@ void VOCalculator::calcVvoRelation() {
 
 			for (auto finalEvent : getAdj(writeLabel, ExecutionGraph::RelationId::spush)) {
 				vvoRelation.addEdge(readLabel->getPos(), *finalEvent);
-				llvm::outs() << "rf; spush " << readLabel->getPos() << " -> " << *finalEvent << "\n";
+				//llvm::outs() << "rf; spush " << readLabel->getPos() << " -> " << *finalEvent << "\n";
 			}
 
 			for (auto finalEvent : getAdj(writeLabel, ExecutionGraph::RelationId::volint)) {
 				vvoRelation.addEdge(readLabel->getPos(), *finalEvent);
-				llvm::outs() << "rf; volint " << readLabel->getPos() << " -> " << *finalEvent << "\n";
+				//llvm::outs() << "rf; volint " << readLabel->getPos() << " -> " << *finalEvent << "\n";
 			}
     	}
 
@@ -167,12 +169,12 @@ void VOCalculator::calcVvoRelation() {
 		for (auto middleLabel : getAdj(lab->getPos(), ExecutionGraph::RelationId::svo)) {
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::spush)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "svo; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "svo; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::volint)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "svo; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "svo; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 		}
 
@@ -180,12 +182,12 @@ void VOCalculator::calcVvoRelation() {
 		for (auto middleLabel : getAdj(lab->getPos(), ExecutionGraph::RelationId::ra)) {
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::spush)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "ra; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "ra; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::volint)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "ra; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "ra; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 		}
 
@@ -193,12 +195,12 @@ void VOCalculator::calcVvoRelation() {
 		for (auto middleLabel : getAdj(lab->getPos(), ExecutionGraph::RelationId::spush)) {
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::spush)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "spush; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "spush; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::volint)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "spush; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "spush; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 		}
 
@@ -206,19 +208,33 @@ void VOCalculator::calcVvoRelation() {
 		for (auto middleLabel : getAdj(lab->getPos(), ExecutionGraph::RelationId::volint)) {
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::spush)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "volint; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "volint; spush " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 
 			for (auto finalLabel : getAdj(*middleLabel, ExecutionGraph::RelationId::volint)) {
 				vvoRelation.addEdge(lab->getPos(), *finalLabel);
-				llvm::outs() << "volint; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
+				//llvm::outs() << "volint; volint " << lab->getPos() << " -> " << *finalLabel << "\n";
 			}
 		}
+
+		// TODO add pushto
 	}
 }
 
 void VOCalculator::calcVoRelation() {
+	auto &g = getGraph();
+	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
+	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 
+	// Add all edges from vvo to vo
+	for (auto &event : vvoRelation.getElems()) {
+		for (auto &adj : getAdj(event, ExecutionGraph::RelationId::vvo)) {
+			// TODO add po-loc
+			voRelation.addEdge(event, *adj);
+		}
+	}
+
+	voRelation.transClosure();
 }
 
 std::vector<Event*> VOCalculator::getAdj(Event lab, ExecutionGraph::RelationId relationId) {
