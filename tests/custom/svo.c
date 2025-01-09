@@ -4,14 +4,26 @@
 #include <stdatomic.h>
 #include <genmc.h>
 
+atomic_int n;
+atomic_int i;
+
+void *thread_1(void *unused)
+{
+	int i_local = atomic_load_explicit(&i, memory_order_relaxed);
+	atomic_thread_fence(memory_order_release);
+	atomic_store_explicit(&n, i_local, memory_order_relaxed);
+	atomic_thread_fence(memory_order_acquire);
+	int n_local = atomic_load_explicit(&n, memory_order_relaxed);
+	atomic_thread_fence(memory_order_seq_cst);
+	return NULL;
+}
+
 atomic_int x;
 atomic_int y;
 
-atomic_int n;
-
 pthread_barrier_t barrier;
 
-void *thread_1(void *unused)
+void *thread_a(void *unused)
 {
 	pthread_barrier_wait(&barrier);
 	pthread_barrier_destroy(&barrier);
@@ -21,7 +33,7 @@ void *thread_1(void *unused)
 	return NULL;
 }
 
-void *thread_2(void *unused)
+void *thread_b(void *unused)
 {
 	if (atomic_load_explicit(&y, memory_order_acquire))
 		if (atomic_load_explicit(&x, memory_order_relaxed))
@@ -29,38 +41,23 @@ void *thread_2(void *unused)
 	return NULL;
 }
 
-void *thread_3(void *unused)
-{
-	atomic_thread_fence(memory_order_release);
-	atomic_store_explicit(&n, 1, memory_order_relaxed);
-	atomic_thread_fence(memory_order_acquire);
-	return NULL;
-}
-
-void *thread_4(void *unused)
-{
-	atomic_thread_fence(memory_order_release);
-	int x = atomic_load_explicit(&n, memory_order_relaxed);
-	atomic_store_explicit(&n, x, memory_order_relaxed);
-	atomic_thread_fence(memory_order_acquire);
-	return NULL;
-}
-
 
 int main()
 {
-	pthread_t t1, t2, t3, t4;
+	pthread_t t1;
 
 	pthread_barrier_init(&barrier, NULL, 1);
 
 	if (pthread_create(&t1, NULL, thread_1, NULL))
 		abort();
-	if (pthread_create(&t2, NULL, thread_2, NULL))
+
+	pthread_t ta, tb;
+
+	if (pthread_create(&ta, NULL, thread_a, NULL))
 		abort();
-	if (pthread_create(&t3, NULL, thread_3, NULL))
-		abort();
-	if (pthread_create(&t4, NULL, thread_4, NULL))
+	if (pthread_create(&tb, NULL, thread_b, NULL))
 		abort();
 
+	
 	return 0;
 }
