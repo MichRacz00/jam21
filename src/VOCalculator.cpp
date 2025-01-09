@@ -262,6 +262,16 @@ void VOCalculator::calcCojomRelation() {
 			if(initialLabel->getAddr() == finalLabel->getAddr()) {
 				cojomRelation.addEdge(lab->getPos(), *finalEvent);
 			}
+
+			/* 
+			 * Add edges from WWco(vo; rf^-1)
+			 * Since last relation is inverse of rf,
+			 * last label must be a write label.
+			 */
+			auto finalWriteLabel = dynamic_cast<WriteLabel *>(finalLabel);
+			for (auto readEvent : finalWriteLabel->getReadersList()) {
+				
+			}
 		}
 	}
 }
