@@ -27,6 +27,9 @@ void *thread_2(void *unused)
 		atomic_thread_fence(memory_order_seq_cst);
 		atomic_store_explicit(&n, 1, memory_order_relaxed);
 	}
+	atomic_store_explicit(&n, 10, memory_order_seq_cst);
+	atomic_store_explicit(&n, 11, memory_order_seq_cst);
+	atomic_store_explicit(&n, 12, memory_order_seq_cst);
 	return NULL;
 }
 
