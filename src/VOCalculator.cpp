@@ -55,34 +55,6 @@ void VOCalculator::removeAfter(const VectorClock &preds)
 	return;
 }
 
-/**
- * Retrieves n previous events starting from and including the given event,
- * and returns them in a vector. The events are ordered from the most recent 
- * (largest timestamp) to the oldest (smallest timestamp), with the given 
- * event at the start of the vector. If fewer than n previous events are available, 
- * an empty vector is returned.
- */
-std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(const EventLabel *lab, int n) {
-	auto &g = getGraph();
-	std::vector<std::unique_ptr<EventLabel>> labels;
-	auto currentLab = lab;
-
-    while (n > 0) {
-        labels.push_back(currentLab->clone());
-        auto prevLab = g.getPreviousNonEmptyLabel(currentLab);
-		/*
-		* If the previous label is the same as the current label, and there are
-        * more labels left to retrieve, return an empty vector indicating
-        * insufficient previous labels.
-		*/ 
-		if (prevLab == currentLab && n > 1) return {};
-		currentLab = prevLab;
-        --n;
-    }
-
-    return labels;
-}
-
 void VOCalculator::calcRaRelation() {
 	auto &g = getGraph();
 	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
@@ -179,18 +151,16 @@ void VOCalculator::calcVvoRelation() {
 		if (auto readLabel = dynamic_cast<const ReadLabel *>(lab)) {
 			auto writeLabel = readLabel->getRf();
 
-			llvm::outs() << readLabel->getPos() << " -> (" << writeLabel << ") -> ...\n";
+			for (auto event : getAdj(readLabel->getPos(), ExecutionGraph::RelationId::ra)) {
+				llvm::outs() << readLabel->getPos() << " --- ra --->" << *event << "\n";
+			}
 
 			for (auto adj = spushRelation.adj_begin(writeLabel); adj != spushRelation.adj_end(writeLabel); ++adj) {
 				vvoRelation.addEdge(readLabel->getPos(), spushRelation.getElems()[*adj]);
-
-				llvm::outs() << readLabel->getPos() << " -> (" << writeLabel << ") -> " << spushRelation.getElems()[*adj] << " spush\n";
     		}
 
 			for (auto adj = volintRelation.adj_begin(writeLabel); adj != volintRelation.adj_end(writeLabel); ++adj) {
 				vvoRelation.addEdge(readLabel->getPos(), volintRelation.getElems()[*adj]);
-
-				llvm::outs() << readLabel->getPos() << " -> (" << writeLabel << ") -> " << volintRelation.getElems()[*adj] << " volint\n";
     		}
     	}
 	}
@@ -223,6 +193,47 @@ void VOCalculator::calcVvoRelation() {
 
 void VOCalculator::calcVoRelation() {
 
+}
+
+std::vector<Event*> VOCalculator::getAdj(Event lab, ExecutionGraph::RelationId relationId) {
+	auto &g = getGraph();
+	auto relation = g.getGlobalRelation(relationId);
+	auto adjLabels = relation.getElems();
+	std::vector<Event*> adjEvents;
+
+	for (auto adj = relation.adj_begin(lab); adj != relation.adj_end(lab); ++adj) {
+		adjEvents.push_back(&adjLabels[*adj]);
+    }
+
+	return adjEvents;
+}
+
+/**
+ * Retrieves n previous events starting from and including the given event,
+ * and returns them in a vector. The events are ordered from the most recent 
+ * (largest timestamp) to the oldest (smallest timestamp), with the given 
+ * event at the start of the vector. If fewer than n previous events are available, 
+ * an empty vector is returned.
+ */
+std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(const EventLabel *lab, int n) {
+	auto &g = getGraph();
+	std::vector<std::unique_ptr<EventLabel>> labels;
+	auto currentLab = lab;
+
+    while (n > 0) {
+        labels.push_back(currentLab->clone());
+        auto prevLab = g.getPreviousNonEmptyLabel(currentLab);
+		/*
+		* If the previous label is the same as the current label, and there are
+        * more labels left to retrieve, return an empty vector indicating
+        * insufficient previous labels.
+		*/ 
+		if (prevLab == currentLab && n > 1) return {};
+		currentLab = prevLab;
+        --n;
+    }
+
+    return labels;
 }
 
 bool VOCalculator::isFence(EventLabel *lab) {

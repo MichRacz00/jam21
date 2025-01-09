@@ -2,6 +2,7 @@
 #define __PSC_CALCULATOR_HPP__
 
 #include "Calculator.hpp"
+#include "ExecutionGraph.hpp"
 
 class VOCalculator : public Calculator {
 
@@ -32,6 +33,8 @@ private:
     void calcVolintRelation();
 	void calcVvoRelation();
 	void calcVoRelation();
+
+    std::vector<Event*> getAdj(Event lab, ExecutionGraph::RelationId relationId);
 
     bool isFence(EventLabel *lab);
 	bool isRead(EventLabel *lab);
