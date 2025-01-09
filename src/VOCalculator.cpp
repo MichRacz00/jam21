@@ -22,6 +22,9 @@ void VOCalculator::initCalc()
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
+	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+
+	llvm::outs() << "Succ";
 
 	raRelation = Calculator::GlobalRelation(allEvents);
 	svoRelation = Calculator::GlobalRelation(allEvents);
@@ -29,6 +32,8 @@ void VOCalculator::initCalc()
 	volintRelation = Calculator::GlobalRelation(allEvents);
 	vvoRelation = Calculator::GlobalRelation(allEvents);
 	voRelation = Calculator::GlobalRelation(allEvents);
+	cojomRelation = Calculator::GlobalRelation(allEvents);
+
 	return;
 }
 
@@ -42,12 +47,14 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcVolintRelation();
 	calcVvoRelation();
 	calcVoRelation();
+	calcCojomRelation();
 
 	auto &g = getGraph();
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
+	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 	//llvm::outs() << vvoRelation << "\n";
 	llvm::outs() << voRelation << "\n";
+	llvm::outs() << cojomRelation << "\n";
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -235,6 +242,28 @@ void VOCalculator::calcVoRelation() {
 	}
 
 	voRelation.transClosure();
+}
+
+void VOCalculator::calcCojomRelation() {
+	auto &g = getGraph();
+	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
+	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+
+	for (auto *lab : labels(g)) {
+		auto initialLabel = dynamic_cast<WriteLabel *>(lab);
+		if (!initialLabel) continue;
+		
+		// add edges from WWco(vo)
+		for(auto finalEvent : getAdj(initialLabel->getPos(), ExecutionGraph::RelationId::vo)) {
+			auto finalLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(*finalEvent));
+			if (!finalLabel) continue;
+
+			// Only add accesses to the same memory location
+			if(initialLabel->getAddr() == finalLabel->getAddr()) {
+				cojomRelation.addEdge(lab->getPos(), *finalEvent);
+			}
+		}
+	}
 }
 
 std::vector<Event*> VOCalculator::getAdj(Event lab, ExecutionGraph::RelationId relationId) {
