@@ -4,14 +4,38 @@
 #include <stdatomic.h>
 #include <genmc.h>
 
+atomic_int n;
+atomic_int i;
+
+void *thread_1(void *unused)
+{
+	int i_local = atomic_load_explicit(&i, memory_order_relaxed);
+	atomic_store_explicit(&n, i, memory_order_relaxed);
+	atomic_thread_fence(memory_order_seq_cst);
+	atomic_store_explicit(&n, 42, memory_order_relaxed);
+	atomic_thread_fence(memory_order_seq_cst);
+	atomic_store_explicit(&n, 1, memory_order_relaxed);
+	atomic_thread_fence(memory_order_seq_cst);
+	return NULL;
+}
+
+void *thread_2(void *unused)
+{
+	atomic_store_explicit(&i, 0, memory_order_seq_cst);
+	atomic_thread_fence(memory_order_seq_cst);
+	if (atomic_load_explicit(&n, memory_order_relaxed)) {
+		atomic_thread_fence(memory_order_seq_cst);
+		atomic_store_explicit(&n, 1, memory_order_relaxed);
+	}
+	return NULL;
+}
+
 atomic_int x;
 atomic_int y;
 
-atomic_int n;
-
 pthread_barrier_t barrier;
 
-void *thread_1(void *unused)
+void *thread_a(void *unused)
 {
 	pthread_barrier_wait(&barrier);
 	pthread_barrier_destroy(&barrier);
@@ -21,7 +45,7 @@ void *thread_1(void *unused)
 	return NULL;
 }
 
-void *thread_2(void *unused)
+void *thread_b(void *unused)
 {
 	if (atomic_load_explicit(&y, memory_order_acquire))
 		if (atomic_load_explicit(&x, memory_order_relaxed))
@@ -29,23 +53,10 @@ void *thread_2(void *unused)
 	return NULL;
 }
 
-void *thread_3(void *unused)
-{
-	atomic_thread_fence(memory_order_seq_cst);
-	atomic_thread_fence(memory_order_seq_cst);
-	atomic_store_explicit(&n, 0, memory_order_seq_cst);
-	atomic_store_explicit(&n, 42, memory_order_seq_cst);
-	atomic_thread_fence(memory_order_seq_cst);
-	atomic_store_explicit(&n, 1, memory_order_relaxed);
-	atomic_thread_fence(memory_order_seq_cst);
-	atomic_thread_fence(memory_order_seq_cst);
-	return NULL;
-}
-
 
 int main()
 {
-	pthread_t t1, t2, t3;
+	pthread_t t1, t2;
 
 	pthread_barrier_init(&barrier, NULL, 1);
 
@@ -53,8 +64,14 @@ int main()
 		abort();
 	if (pthread_create(&t2, NULL, thread_2, NULL))
 		abort();
-	if (pthread_create(&t3, NULL, thread_3, NULL))
+
+	pthread_t ta, tb;
+
+	if (pthread_create(&ta, NULL, thread_a, NULL))
+		abort();
+	if (pthread_create(&tb, NULL, thread_b, NULL))
 		abort();
 
+	
 	return 0;
 }

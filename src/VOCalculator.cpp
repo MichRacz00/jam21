@@ -173,13 +173,28 @@ void VOCalculator::calcVvoRelation() {
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
+	llvm::outs() << spushRelation << "\n";
+
 	for (const auto *lab : labels(g)) {
 		if (auto readLabel = dynamic_cast<const ReadLabel *>(lab)) {
 			auto writeLabel = readLabel->getRf();
-			vvoRelation.addEdge(readLabel->getPos(), writeLabel);
+
+			llvm::outs() << readLabel->getPos() << " -> (" << writeLabel << ") -> ...\n";
+
+			for (auto adj = spushRelation.adj_begin(writeLabel); adj != spushRelation.adj_end(writeLabel); ++adj) {
+				vvoRelation.addEdge(readLabel->getPos(), spushRelation.getElems()[*adj]);
+
+				llvm::outs() << readLabel->getPos() << " -> (" << writeLabel << ") -> " << spushRelation.getElems()[*adj] << " spush\n";
+    		}
+
+			for (auto adj = volintRelation.adj_begin(writeLabel); adj != volintRelation.adj_end(writeLabel); ++adj) {
+				vvoRelation.addEdge(readLabel->getPos(), volintRelation.getElems()[*adj]);
+
+				llvm::outs() << readLabel->getPos() << " -> (" << writeLabel << ") -> " << volintRelation.getElems()[*adj] << " volint\n";
+    		}
     	}
 	}
-
+	/*
 	for (const auto& node : raRelation) {
     	for (auto adj = raRelation.adj_begin(node); adj != raRelation.adj_end(node); ++adj) {
 			vvoRelation.addEdge(node, raRelation.getElems()[*adj]);
@@ -203,6 +218,7 @@ void VOCalculator::calcVvoRelation() {
 			vvoRelation.addEdge(node, volintRelation.getElems()[*adj]);
     	}
 	}
+	*/
 }
 
 void VOCalculator::calcVoRelation() {

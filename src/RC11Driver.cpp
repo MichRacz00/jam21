@@ -1,4 +1,3 @@
-
 /*
  * GenMC -- Generic Model Checking.
  *
@@ -63,11 +62,6 @@ void RC11Driver::calcBasicViews(EventLabel *lab)
 
 	View hb = calcBasicHbView(lab->getPos());
 	View porf = calcBasicPorfView(lab->getPos());
-
-	llvm::outs() << g << "\n";
-	llvm::outs() << "hb   " << hb << "\n";
-	llvm::outs() << "porf " << porf << "\n";
-	llvm::outs() << "--------------------------------\n";
 
 	lab->setHbView(std::move(hb));
 	lab->setPorfView(std::move(porf));
@@ -433,7 +427,6 @@ bool RC11Driver::updateJoin(Event join, Event childLast)
 	return true;
 }
 
-// Initial function, called when starting
 void RC11Driver::initConsCalculation()
 {
 	return;

@@ -8,7 +8,6 @@ atomic_int x;
 atomic_int y;
 
 atomic_int n;
-atomic_int i;
 
 pthread_barrier_t barrier;
 
@@ -41,7 +40,8 @@ void *thread_3(void *unused)
 void *thread_4(void *unused)
 {
 	atomic_thread_fence(memory_order_release);
-	atomic_store_explicit(&i, 1, memory_order_relaxed);
+	int x = atomic_load_explicit(&n, memory_order_relaxed);
+	atomic_store_explicit(&n, x, memory_order_relaxed);
 	atomic_thread_fence(memory_order_acquire);
 	return NULL;
 }

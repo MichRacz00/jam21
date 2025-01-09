@@ -31,7 +31,7 @@ void *thread_2(void *unused)
 
 void *thread_3(void *unused)
 {
-        atomic_store_explicit(&n, 1, memory_order_relaxed);
+    atomic_store_explicit(&n, 1, memory_order_relaxed);
 	atomic_thread_fence(memory_order_seq_cst);
 	atomic_store_explicit(&n, 2, memory_order_relaxed);
 	
