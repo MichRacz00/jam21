@@ -173,6 +173,13 @@ void VOCalculator::calcVvoRelation() {
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
+	for (const auto *lab : labels(g)) {
+		if (auto readLabel = dynamic_cast<const ReadLabel *>(lab)) {
+			auto writeLabel = readLabel->getRf();
+			vvoRelation.addEdge(readLabel->getPos(), writeLabel);
+    	}
+	}
+
 	for (const auto& node : raRelation) {
     	for (auto adj = raRelation.adj_begin(node); adj != raRelation.adj_end(node); ++adj) {
 			vvoRelation.addEdge(node, raRelation.getElems()[*adj]);
