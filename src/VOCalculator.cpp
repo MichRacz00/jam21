@@ -290,11 +290,6 @@ void VOCalculator::calcCojomRelation() {
 					cojomRelation.addEdge(lab->getPos(), finalPoWriteLabel->getPos());
 				}
 			}
-			
-
-
-			//auto finalPoEvent = *finalLabel;
-			//llvm::outs() << finalLabel->getPos() << " " << finalPoEvent << "\n";
 		}
 	}
 }
