@@ -156,18 +156,18 @@ void VOCalculator::calcVvoRelation() {
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
 	for (const auto *lab : labels(g)) {
-
+		
 		// Calculations for rf; (spush U volint)
 		if (auto readLabel = dynamic_cast<const ReadLabel *>(lab)) {
 			auto writeLabel = readLabel->getRf();
-
-			for (auto finalEvent : getAdj(writeLabel, ExecutionGraph::RelationId::spush)) {
-				vvoRelation.addEdge(readLabel->getPos(), *finalEvent);
+			
+			for (auto finalEvent : getAdj(readLabel->getPos(), ExecutionGraph::RelationId::spush)) {
+				vvoRelation.addEdge(writeLabel, *finalEvent);
 				//llvm::outs() << "rf; spush " << readLabel->getPos() << " -> " << *finalEvent << "\n";
 			}
 
-			for (auto finalEvent : getAdj(writeLabel, ExecutionGraph::RelationId::volint)) {
-				vvoRelation.addEdge(readLabel->getPos(), *finalEvent);
+			for (auto finalEvent : getAdj(readLabel->getPos(), ExecutionGraph::RelationId::volint)) {
+				vvoRelation.addEdge(writeLabel, *finalEvent);
 				//llvm::outs() << "rf; volint " << readLabel->getPos() << " -> " << *finalEvent << "\n";
 			}
     	}
@@ -266,12 +266,17 @@ void VOCalculator::calcCojomRelation() {
 			/* 
 			 * Add edges from WWco(vo; rf^-1)
 			 * Since last relation is inverse of rf,
-			 * last label must be a write label.
+			 * last label must be a write label,
+			 * and the middle label a read.
 			 */
-			auto finalWriteLabel = dynamic_cast<WriteLabel *>(finalLabel);
-			for (auto readEvent : finalWriteLabel->getReadersList()) {
-				
+			auto middleReadLabel = dynamic_cast<ReadLabel *>(finalLabel);
+			if (middleReadLabel) {
+				auto finalWriteLabel = middleReadLabel->getRf();
+				cojomRelation.addEdge(lab->getPos(), finalWriteLabel);
+
+				llvm::outs() << "vo; rf^-1 " << lab->getPos() << " -> " << middleReadLabel->getPos() << " -> " << finalWriteLabel << "\n"; 
 			}
+			
 		}
 	}
 }
