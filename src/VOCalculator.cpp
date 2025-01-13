@@ -48,17 +48,22 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcCojomRelation();
 
 	auto &g = getGraph();
+
+	// Calculate acyclicity by transitive closure and irreflexivity.
+	// Performed on a copy to preserve cojom for next call of doCalc().
+	auto cojomCopy = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+	cojomCopy.transClosure();
+	bool isAcyclic = cojomCopy.isIrreflexive();
+
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
-	//llvm::outs() << vvoRelation << "\n";
-	llvm::outs() << voRelation << "\n";
 	llvm::outs() << cojomRelation << "\n";
 
-	return Calculator::CalculationResult(false, true);
+	return Calculator::CalculationResult(false, isAcyclic);
 }
 
 void VOCalculator::removeAfter(const VectorClock &preds)
 {
+	llvm::outs() << "Removed relation: " << preds << "\n";
 	/* We do not track anything specific */
 	return;
 }
@@ -307,7 +312,7 @@ void VOCalculator::calcCojomRelation() {
 
 				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
 				if (finalWriteLabel->isNotAtomic()) continue;
-				
+
 				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
 					cojomRelation.addEdge(initialWriteLabel->getPos(), finalWriteLabel->getPos());
 				}
