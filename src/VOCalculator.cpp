@@ -307,8 +307,7 @@ void VOCalculator::calcCojomRelation() {
 
 				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
 				if (finalWriteLabel->isNotAtomic()) continue;
-
-				llvm::outs() << initialWriteLabel->getPos() << " -rf-> " << g.getEventLabel(initialReadEvent)->getPos() << " -po-> " << finalReadLabel->getPos() << " -rf-> " << finalWriteLabel->getPos() << "\n";
+				
 				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
 					cojomRelation.addEdge(initialWriteLabel->getPos(), finalWriteLabel->getPos());
 				}
