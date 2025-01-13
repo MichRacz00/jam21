@@ -273,11 +273,28 @@ void VOCalculator::calcCojomRelation() {
 			auto finalVoReadLabel = dynamic_cast<ReadLabel *>(g.getEventLabel(*finalVoEvent));
 			if (finalVoReadLabel) {
 				auto finalRfWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalVoReadLabel->getRf()));
-				
+
 				if (initialLabel->getAddr() == finalRfWriteLabel->getAddr() && initialLabel != finalRfWriteLabel) {
 					cojomRelation.addEdge(lab->getPos(), finalVoReadLabel->getRf());
 				}
 			}
+
+			/*
+			 * Add corw edges. Carru out the same check as for coww,
+			 * except for the next event in PO.
+			 */
+			auto finalLabel = g.getEventLabel(*finalVoEvent);
+			auto finalPoWriteLabel = dynamic_cast<WriteLabel *>(g.getNextLabel(finalLabel));
+			if (finalPoWriteLabel) {
+				if (initialLabel->getAddr() == finalPoWriteLabel->getAddr() && initialLabel != finalPoWriteLabel) {
+					cojomRelation.addEdge(lab->getPos(), finalPoWriteLabel->getPos());
+				}
+			}
+			
+
+
+			//auto finalPoEvent = *finalLabel;
+			//llvm::outs() << finalLabel->getPos() << " " << finalPoEvent << "\n";
 		}
 	}
 }
