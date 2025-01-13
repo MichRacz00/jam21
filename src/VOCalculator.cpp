@@ -268,42 +268,16 @@ void VOCalculator::calcCojomRelation() {
 			
 			/*
 			 * If the event in VO is a read, with RF^-1 pointg
-			 * to a write to the same location
+			 * to a write to the same location add this relation to cojom
 			 */
 			auto finalVoReadLabel = dynamic_cast<ReadLabel *>(g.getEventLabel(*finalVoEvent));
 			if (finalVoReadLabel) {
 				auto finalRfWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalVoReadLabel->getRf()));
-				llvm::outs() << "vo; rf^-1 " << lab->getPos() << " -> " << finalVoReadLabel->getPos() << finalRfWriteLabel->getPos() << "\n";
-
+				
 				if (initialLabel->getAddr() == finalRfWriteLabel->getAddr() && initialLabel != finalRfWriteLabel) {
 					cojomRelation.addEdge(lab->getPos(), finalVoReadLabel->getRf());
 				}
 			}
-
-			/* 
-			 * Add edges from WWco(vo; rf^-1)
-			 * Since last relation is inverse of rf,
-			 * last label must be a write label,
-			 * and the middle label a read.
-			 */
-			/*
-			auto middleReadLabel = dynamic_cast<ReadLabel *>(finalLabel);
-			if (middleReadLabel) {
-				llvm::outs() << middleReadLabel->getPos() << "\n" ;
-
-				auto finalWriteEvent = middleReadLabel->getRf();
-				//auto finalWriteLabel = g.getEventLabel(finalWriteEvent);
-
-				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalWriteEvent));
-				//BUG_ON(!llvm::isa<WriteLabel>(finalWriteEvent));
-
-				if (initialLabel->getAddr() == finalWriteLabel->getAddr())
-				cojomRelation.addEdge(lab->getPos(), finalWriteEvent);
-
-				
-			}
-			*/
-			
 		}
 	}
 }

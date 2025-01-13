@@ -5,24 +5,23 @@
 #include <genmc.h>
 
 atomic_int n;
-atomic_int m;
 atomic_int i;
 
 void *thread_1(void *unused)
 {
 	atomic_store_explicit(&n, 0, memory_order_seq_cst);
-	while(atomic_load_explicit(&i, memory_order_relaxed) != 1) {}
+	atomic_store_explicit(&n, 1, memory_order_seq_cst);
+	atomic_load_explicit(&n, memory_order_seq_cst);
+
+	while(atomic_load_explicit(&i, memory_order_relaxed) != 1);
 	
 	return NULL;
 }
 
 void *thread_2(void *unused)
 {
-	atomic_store_explicit(&n, 1, memory_order_seq_cst);
-	atomic_int n_local = atomic_load_explicit(&n, memory_order_seq_cst);
-	atomic_store_explicit(&m, 2, memory_order_seq_cst);
-	atomic_load_explicit(&n, memory_order_seq_cst);
-	
+	while(atomic_load_explicit(&n, memory_order_relaxed) != 1);
+
 	atomic_store_explicit(&i, 1, memory_order_seq_cst);
 	
 	return NULL;
