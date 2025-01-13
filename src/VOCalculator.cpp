@@ -291,6 +291,29 @@ void VOCalculator::calcCojomRelation() {
 				}
 			}
 		}
+
+		/*
+		 * Add corr edges. Find four events W -rf-> R -po-> R <-rf- W,
+		 * flip the last rf relation. Writes must be opaque or stronger
+		 * and to the same address.
+		 */
+		auto initialWriteLabel = dynamic_cast<WriteLabel *>(lab);
+		if (initialWriteLabel) {
+			if (initialWriteLabel->isNotAtomic()) continue;
+
+			for (auto initialReadEvent : initialWriteLabel->getReadersList()) {
+				auto finalReadLabel = dynamic_cast<ReadLabel *>(g.getNextLabel(initialReadEvent));
+				if (!finalReadLabel) continue;
+
+				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
+				if (finalWriteLabel->isNotAtomic()) continue;
+
+				llvm::outs() << initialWriteLabel->getPos() << " -rf-> " << g.getEventLabel(initialReadEvent)->getPos() << " -po-> " << finalReadLabel->getPos() << " -rf-> " << finalWriteLabel->getPos() << "\n";
+				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
+					cojomRelation.addEdge(initialWriteLabel->getPos(), finalWriteLabel->getPos());
+				}
+			}
+		}
 	}
 }
 
