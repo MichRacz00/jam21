@@ -5,13 +5,26 @@
 #include <genmc.h>
 
 atomic_int n;
+atomic_int m;
 atomic_int i;
 
 void *thread_1(void *unused)
 {
-	atomic_store_explicit(&n, 0, memory_order_relaxed);
+	atomic_store_explicit(&n, 0, memory_order_seq_cst);
+	while(atomic_load_explicit(&i, memory_order_relaxed) != 1) {}
+	
+	return NULL;
+}
+
+void *thread_2(void *unused)
+{
+	atomic_store_explicit(&n, 1, memory_order_seq_cst);
 	atomic_int n_local = atomic_load_explicit(&n, memory_order_seq_cst);
-	atomic_thread_fence(memory_order_seq_cst);
+	atomic_store_explicit(&m, 2, memory_order_seq_cst);
+	atomic_load_explicit(&n, memory_order_seq_cst);
+	
+	atomic_store_explicit(&i, 1, memory_order_seq_cst);
+	
 	return NULL;
 }
 
@@ -41,13 +54,15 @@ void *thread_b(void *unused)
 
 int main()
 {
-	pthread_t t1;
+	pthread_t t1, t2;
 
 	pthread_barrier_init(&barrier, NULL, 1);
 
 	if (pthread_create(&t1, NULL, thread_1, NULL))
 		abort();
-		
+	if (pthread_create(&t2, NULL, thread_2, NULL))
+		abort();
+
 	pthread_t ta, tb;
 
 	if (pthread_create(&ta, NULL, thread_a, NULL))

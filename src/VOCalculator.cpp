@@ -24,8 +24,6 @@ void VOCalculator::initCalc()
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 
-	llvm::outs() << "Succ";
-
 	raRelation = Calculator::GlobalRelation(allEvents);
 	svoRelation = Calculator::GlobalRelation(allEvents);
 	spushRelation = Calculator::GlobalRelation(allEvents);
@@ -249,18 +247,37 @@ void VOCalculator::calcCojomRelation() {
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 
+	// add coww, cowr and corw edges
 	for (auto *lab : labels(g)) {
+
+		// First label must allways be a write
 		auto initialLabel = dynamic_cast<WriteLabel *>(lab);
 		if (!initialLabel) continue;
-		
-		// add edges from WWco(vo)
-		for(auto finalEvent : getAdj(initialLabel->getPos(), ExecutionGraph::RelationId::vo)) {
-			auto finalLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(*finalEvent));
-			if (!finalLabel) continue;
 
-			// Only add accesses to the same memory location
-			if(initialLabel->getAddr() == finalLabel->getAddr()) {
-				cojomRelation.addEdge(lab->getPos(), *finalEvent);
+		// Iteratoe over all final VO events
+		for(auto finalVoEvent : getAdj(initialLabel->getPos(), ExecutionGraph::RelationId::vo)) {
+
+			auto finalVoWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(*finalVoEvent));
+			if (finalVoWriteLabel) {
+				// If both labels are writes to the same address,
+				// and are not the same, then this event is in coww
+				if(initialLabel->getAddr() == finalVoWriteLabel->getAddr() && initialLabel != finalVoWriteLabel) {
+					cojomRelation.addEdge(lab->getPos(), *finalVoEvent);
+				}
+			}
+			
+			/*
+			 * If the event in VO is a read, with RF^-1 pointg
+			 * to a write to the same location
+			 */
+			auto finalVoReadLabel = dynamic_cast<ReadLabel *>(g.getEventLabel(*finalVoEvent));
+			if (finalVoReadLabel) {
+				auto finalRfWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalVoReadLabel->getRf()));
+				llvm::outs() << "vo; rf^-1 " << lab->getPos() << " -> " << finalVoReadLabel->getPos() << finalRfWriteLabel->getPos() << "\n";
+
+				if (initialLabel->getAddr() == finalRfWriteLabel->getAddr() && initialLabel != finalRfWriteLabel) {
+					cojomRelation.addEdge(lab->getPos(), finalVoReadLabel->getRf());
+				}
 			}
 
 			/* 
@@ -269,13 +286,23 @@ void VOCalculator::calcCojomRelation() {
 			 * last label must be a write label,
 			 * and the middle label a read.
 			 */
+			/*
 			auto middleReadLabel = dynamic_cast<ReadLabel *>(finalLabel);
 			if (middleReadLabel) {
-				auto finalWriteLabel = middleReadLabel->getRf();
-				cojomRelation.addEdge(lab->getPos(), finalWriteLabel);
+				llvm::outs() << middleReadLabel->getPos() << "\n" ;
 
-				llvm::outs() << "vo; rf^-1 " << lab->getPos() << " -> " << middleReadLabel->getPos() << " -> " << finalWriteLabel << "\n"; 
+				auto finalWriteEvent = middleReadLabel->getRf();
+				//auto finalWriteLabel = g.getEventLabel(finalWriteEvent);
+
+				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalWriteEvent));
+				//BUG_ON(!llvm::isa<WriteLabel>(finalWriteEvent));
+
+				if (initialLabel->getAddr() == finalWriteLabel->getAddr())
+				cojomRelation.addEdge(lab->getPos(), finalWriteEvent);
+
+				
 			}
+			*/
 			
 		}
 	}
