@@ -52,14 +52,12 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	auto &g = getGraph();
 
-	// Calculate acyclicity by transitive closure and irreflexivity.
-	// Performed on a copy to preserve cojom for next call of doCalc().
-	auto cojomCopy = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	cojomCopy.transClosure();
-	bool isAcyclic = cojomCopy.isIrreflexive();
-
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	llvm::outs() << cojomRelation << "\n";
+
+	// Calculate acyclicity by transitive closure and irreflexivity.
+	calcTransC(ExecutionGraph::RelationId::cojom);
+	bool isAcyclic = cojomRelation.isIrreflexive();
 
 	//auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	//llvm::outs() << vvoRelation << "\n";
