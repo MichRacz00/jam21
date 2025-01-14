@@ -58,8 +58,8 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	cojomCopy.transClosure();
 	bool isAcyclic = cojomCopy.isIrreflexive();
 
-	//auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	//llvm::outs() << cojomRelation << "\n";
+	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+	llvm::outs() << cojomRelation << "\n";
 
 	//auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	//llvm::outs() << vvoRelation << "\n";
@@ -67,8 +67,8 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	//auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 	//llvm::outs() << polocRelation << "\n";
 
-	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
-	llvm::outs() << voRelation << "\n";
+	//auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
+	//llvm::outs() << voRelation << "\n";
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
