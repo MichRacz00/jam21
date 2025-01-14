@@ -61,8 +61,8 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	//auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	//llvm::outs() << cojomRelation << "\n";
 
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
-	llvm::outs() << vvoRelation << "\n";
+	//auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
+	//llvm::outs() << vvoRelation << "\n";
 
 	//auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 	//llvm::outs() << polocRelation << "\n";
@@ -277,12 +277,11 @@ void VOCalculator::calcVoRelation() {
 	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 
-	vvoRelation.transClosure();
+	calcTransC(ExecutionGraph::RelationId::vvo);
 
 	// Add all edges from vvo to vo
 	for (auto &event : vvoRelation.getElems()) {
 		for (auto &adj : getAdj(event, ExecutionGraph::RelationId::vvo)) {
-			llvm::outs() << event << " -> " << *adj << "\n";
 			voRelation.addEdge(event, *adj);
 		}
 	}
@@ -290,7 +289,7 @@ void VOCalculator::calcVoRelation() {
 	// Add all edges from po-loc to vo
 	for (auto &event : polocRelation.getElems()) {
 		for (auto &adj : getAdj(event, ExecutionGraph::RelationId::poloc)) {
-			//voRelation.addEdge(event, *adj);
+			voRelation.addEdge(event, *adj);
 		}
 	}
 }
@@ -412,11 +411,15 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(const EventLa
 
 void VOCalculator::calcTransC(ExecutionGraph::RelationId relationId) {
 	auto &g = getGraph();
-	auto relation = g.getGlobalRelation(relationId);
+	auto &relation = g.getGlobalRelation(relationId);
 
 	for (auto event : relation.getElems()) {
 		auto lab = g.getEventLabel(event);
-		calcTransC(lab, relationId);
+		auto labels = calcTransC(lab, relationId);
+
+		for (auto &finalLabel : labels) {
+			relation.addEdge(lab->getPos(), finalLabel->getPos());
+		}
 	}
 }
 
@@ -428,12 +431,14 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
 
 	// This label in the graph does not have any outgoing edges
 	if (adj.size() == 0) {
-		llvm::outs() << "Reached the end: " << lab->getPos() << "\n";
-		labels.push_back(lab->clone());
+		return labels;
 	}
 
+	// Perform depth first serch, accumulate visited nodes in a vector
 	for (auto adjEvent : getAdj(lab->getPos(), relationId)) {
 		auto adjLab = g.getEventLabel(*adjEvent);
+		labels.push_back(adjLab->clone());
+
 		auto labTrans = calcTransC(adjLab, relationId);
 		std::move(labTrans.begin(), labTrans.end(), std::back_inserter(labels));
 	}
