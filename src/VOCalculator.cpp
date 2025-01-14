@@ -23,6 +23,7 @@ void VOCalculator::initCalc()
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 
 	raRelation = Calculator::GlobalRelation(allEvents);
 	svoRelation = Calculator::GlobalRelation(allEvents);
@@ -31,6 +32,7 @@ void VOCalculator::initCalc()
 	vvoRelation = Calculator::GlobalRelation(allEvents);
 	voRelation = Calculator::GlobalRelation(allEvents);
 	cojomRelation = Calculator::GlobalRelation(allEvents);
+	polocRelation = Calculator::GlobalRelation(allEvents);
 
 	return;
 }
@@ -44,6 +46,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcSpushRelation();
 	calcVolintRelation();
 	calcVvoRelation();
+	calcPolocRelation();
 	calcVoRelation();
 	calcCojomRelation();
 
@@ -55,15 +58,17 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	cojomCopy.transClosure();
 	bool isAcyclic = cojomCopy.isIrreflexive();
 
-	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	llvm::outs() << cojomRelation << "\n";
+	//auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+	//llvm::outs() << cojomRelation << "\n";
+
+	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
+	llvm::outs() << polocRelation << "\n";
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
 
 void VOCalculator::removeAfter(const VectorClock &preds)
 {
-	llvm::outs() << "Removed relation: " << preds << "\n";
 	/* We do not track anything specific */
 	return;
 }
@@ -228,6 +233,35 @@ void VOCalculator::calcVvoRelation() {
 		}
 
 		// TODO add pushto
+	}
+}
+
+void VOCalculator::calcPolocRelation() {
+	auto &g = getGraph();
+	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
+
+	for (auto eventLabel : labels(g)) {
+		auto initialMemoryLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
+		if (!initialMemoryLabel) continue;
+
+		bool finalLabelFound = false;
+		auto nextLabel = eventLabel;
+		while (!finalLabelFound) {
+			nextLabel = g.getNextLabel(nextLabel);
+			// Reached the end of the thread, terminate
+			if (!nextLabel) break;
+
+			auto nextMemoryLabel = dynamic_cast<MemAccessLabel *>(nextLabel);
+			// is not a memory access label, continue
+			if (!nextMemoryLabel) continue;
+			
+			// Initial and next labels access the same address, return
+			if (initialMemoryLabel->getAddr() == nextMemoryLabel->getAddr()) finalLabelFound = true;
+		}
+
+		if (finalLabelFound) {
+			polocRelation.addEdge(initialMemoryLabel->getPos(), nextLabel->getPos());
+		}
 	}
 }
 

@@ -32,7 +32,8 @@ private:
     void calcSpushRelation();
     void calcVolintRelation();
 	void calcVvoRelation();
-	void calcVoRelation();
+    void calcPolocRelation();
+    void calcVoRelation();
     void calcCojomRelation();
 
     std::vector<Event*> getAdj(Event lab, ExecutionGraph::RelationId relationId);

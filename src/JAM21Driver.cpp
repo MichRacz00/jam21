@@ -44,6 +44,8 @@ JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llv
 	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::vvo, false);
 	g.addCalculator(std::make_unique<VOCalculator>(g),
+			ExecutionGraph::RelationId::poloc, false);
+	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::vo, false);
 	g.addCalculator(std::make_unique<VOCalculator>(g),
 			ExecutionGraph::RelationId::cojom, false);
@@ -296,10 +298,6 @@ void JAM21Driver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* de
 	default:
 		BUG();
 	}
-
-	llvm::outs() << g;
-
-	llvm::outs() << "-----------------------------------------------\n";
 }
 
 bool JAM21Driver::areInDataRace(const MemAccessLabel *aLab, const MemAccessLabel *bLab)

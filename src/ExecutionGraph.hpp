@@ -83,7 +83,7 @@ public:
 	/* Different relations that might exist in the graph */
 	enum class RelationId {
 		hb, co, lb, psc, ar, prop, ar_lkmm, pb, rcu_link, rcu, rcu_fence, xb,
-		ra, svo, spush, volint, vvo, vo, cojom
+		ra, svo, spush, volint, vvo, poloc, vo, cojom
 	};
 
 protected:
