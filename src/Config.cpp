@@ -396,6 +396,7 @@ void Config::getConfigOptions(int argc, char **argv)
 
 	/* Hide unrelated LLVM options and parse user configuration */
 	llvm::cl::HideUnrelatedOptions(cats);
+
 	llvm::cl::ParseCommandLineOptions(argc, argv, "GenMC -- "
 					  "Model Checking for C programs");
 

@@ -39,8 +39,6 @@ void VOCalculator::initCalc()
 
 Calculator::CalculationResult VOCalculator::doCalc()
 {
-	llvm::outs() << "--------------- Called doCalc() ---------------\n";
-
 	calcRaRelation();
 	calcSvoRelation();
 	calcSpushRelation();
@@ -53,20 +51,11 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	auto &g = getGraph();
 
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	llvm::outs() << cojomRelation << "\n";
+	//llvm::outs() << cojomRelation << "\n";
 
 	// Calculate acyclicity by transitive closure and irreflexivity.
 	calcTransC(ExecutionGraph::RelationId::cojom);
 	bool isAcyclic = cojomRelation.isIrreflexive();
-
-	//auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
-	//llvm::outs() << vvoRelation << "\n";
-
-	//auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
-	//llvm::outs() << polocRelation << "\n";
-
-	//auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
-	//llvm::outs() << voRelation << "\n";
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
@@ -357,7 +346,7 @@ void VOCalculator::calcCojomRelation() {
 
 				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
 				if (finalWriteLabel->isNotAtomic()) continue;
-
+				
 				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
 					cojomRelation.addEdge(initialWriteLabel->getPos(), finalWriteLabel->getPos());
 				}
@@ -436,6 +425,8 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
 	for (auto adjEvent : getAdj(lab->getPos(), relationId)) {
 		auto adjLab = g.getEventLabel(*adjEvent);
 		labels.push_back(adjLab->clone());
+
+		if (adjLab == lab) return labels;
 
 		auto labTrans = calcTransC(adjLab, relationId);
 		std::move(labTrans.begin(), labTrans.end(), std::back_inserter(labels));
