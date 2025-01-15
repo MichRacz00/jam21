@@ -12,31 +12,27 @@ void __VERIFIER_assume(int);
 void *thread_1(void *unused)
 {
 	atomic_store_explicit(&x, 2, memory_order_seq_cst);
-	int y_local = atomic_load_explicit(&y, memory_order_seq_cst);
-	__VERIFIER_assume(y_local == 2);
+	__VERIFIER_assume(y == 0);
 	return NULL;
 }
 
 void *thread_2(void *unused)
 {
-	__VERIFIER_assume(y == 0);
 	atomic_store_explicit(&y, 1, memory_order_seq_cst);
 	return NULL;
 }
 
 void *thread_3(void *unused)
 {
-	atomic_load_explicit(&y, memory_order_seq_cst);
+	__VERIFIER_assume(y == 1);
 	atomic_store_explicit(&x, 1, memory_order_seq_cst);
 	return NULL;
 }
 
 void *thread_4(void *unused)
 {
-	__VERIFIER_assume(x == 2);
-	atomic_load_explicit(&x, memory_order_seq_cst);
 	__VERIFIER_assume(x == 1);
-	atomic_load_explicit(&x, memory_order_seq_cst);
+	__VERIFIER_assume(x == 2);
 	return NULL;
 }
 
