@@ -296,7 +296,7 @@ void VOCalculator::calcCojomRelation() {
 		// Iteratoe over all final VO events
 		for(auto finalVoEvent : getAdj(initialLabel->getPos(), ExecutionGraph::RelationId::vo)) {
 
-			auto finalVoWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(*finalVoEvent));
+			auto finalVoWriteLabel = g.getWriteLabel(*finalVoEvent);
 			if (finalVoWriteLabel) {
 				// If both labels are writes to the same address,
 				// and are not the same, then this event is in coww
@@ -309,9 +309,9 @@ void VOCalculator::calcCojomRelation() {
 			 * If the event in VO is a read, with RF^-1 pointg
 			 * to a write to the same location add this relation to cojom
 			 */
-			auto finalVoReadLabel = dynamic_cast<ReadLabel *>(g.getEventLabel(*finalVoEvent));
+			auto finalVoReadLabel = g.getReadLabel(*finalVoEvent);
 			if (finalVoReadLabel) {
-				auto finalRfWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalVoReadLabel->getRf()));
+				auto finalRfWriteLabel = g.getWriteLabel(finalVoReadLabel->getRf());
 
 				if (initialLabel->getAddr() == finalRfWriteLabel->getAddr() && initialLabel != finalRfWriteLabel) {
 					cojomRelation.addEdge(lab->getPos(), finalVoReadLabel->getRf());
@@ -323,7 +323,11 @@ void VOCalculator::calcCojomRelation() {
 			 * except for the next event in PO.
 			 */
 			auto finalLabel = g.getEventLabel(*finalVoEvent);
-			auto finalPoWriteLabel = dynamic_cast<WriteLabel *>(g.getNextLabel(finalLabel));
+			if (!finalLabel) continue;
+			auto finalPoLabel = g.getNextLabel(finalLabel);
+			if (!finalPoLabel) continue;
+
+			auto finalPoWriteLabel = dynamic_cast<WriteLabel *>(finalPoLabel);
 			if (finalPoWriteLabel) {
 				if (initialLabel->getAddr() == finalPoWriteLabel->getAddr() && initialLabel != finalPoWriteLabel) {
 					cojomRelation.addEdge(lab->getPos(), finalPoWriteLabel->getPos());
@@ -341,10 +345,13 @@ void VOCalculator::calcCojomRelation() {
 			if (initialWriteLabel->isNotAtomic()) continue;
 
 			for (auto initialReadEvent : initialWriteLabel->getReadersList()) {
+
 				auto finalReadLabel = dynamic_cast<ReadLabel *>(g.getNextLabel(initialReadEvent));
 				if (!finalReadLabel) continue;
 
 				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
+				if (!finalWriteLabel) continue;
+
 				if (finalWriteLabel->isNotAtomic()) continue;
 				
 				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
