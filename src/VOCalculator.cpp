@@ -45,6 +45,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcVolintRelation();
 	calcVvoRelation();
 	calcPolocRelation();
+	clacPushtoRelation();
 	calcVoRelation();
 	calcCojomRelation();
 
@@ -52,6 +53,44 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	//llvm::outs() << cojomRelation << "\n";
+
+	/*
+	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	auto sorts = spushRelation.topoSort();
+	spushRelation.allTopoSort([this](auto& sort) {
+        // Print the current topological sort
+        for (const auto& node : sort) {
+            llvm::outs() << node << " ";
+        }
+        llvm::outs() << "\n";
+
+		auto &g = getGraph();
+		bool valid = true;
+
+		for (int i = 0; i < sort.size() - 1; ++i) {
+			auto event = sort[i];
+			auto nextEvent = sort[i + 1];
+
+			auto lab = g.getEventLabel(event);
+			auto nextLab = g.getEventLabel(nextEvent);
+
+			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
+				valid = false;
+				llvm::outs() << lab->getPos() << lab->getPorfView() <<  " " << nextLab->getPos() << nextLab->getPorfView() << "\n"; 
+			}
+
+		}
+
+        // Return false to continue finding all topological sorts
+        return false;
+    });
+	*/
+
+	auto spushRel = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	auto volintRel = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+
+	llvm::outs() << spushRel << "\n";
+	llvm::outs() << volintRel << "\n";
 
 	// Calculate acyclicity by transitive closure and irreflexivity.
 	calcTransC(ExecutionGraph::RelationId::cojom);
@@ -281,6 +320,32 @@ void VOCalculator::calcVoRelation() {
 	}
 }
 
+void VOCalculator::clacPushtoRelation() {
+	auto &g = getGraph();
+	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+
+	std::vector<Event> allEvents;
+	for (const auto *lab : labels(g)) {
+		allEvents.push_back(lab->getPos());
+	}
+	Calculator::GlobalRelation pushRelation(allEvents);
+	
+	for (auto event : spushRelation.getElems()) {
+		for (auto adjEvent : getAdj(event, ExecutionGraph::RelationId::spush)) {
+			pushRelation.addEdge(event, *adjEvent);
+		}
+	}
+
+	for (auto event : volintRelation.getElems()) {
+		for (auto &adjEvent : getAdj(event, ExecutionGraph::RelationId::volint)) {
+			pushRelation.addEdge(event, *adjEvent);
+		}
+	}
+
+	llvm::outs() << pushRelation << "\n====================================================\n";
+}
+
 void VOCalculator::calcCojomRelation() {
 	auto &g = getGraph();
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
@@ -312,6 +377,7 @@ void VOCalculator::calcCojomRelation() {
 			auto finalVoReadLabel = g.getReadLabel(*finalVoEvent);
 			if (finalVoReadLabel) {
 				auto finalRfWriteLabel = g.getWriteLabel(finalVoReadLabel->getRf());
+				if (!finalRfWriteLabel) continue;
 
 				if (initialLabel->getAddr() == finalRfWriteLabel->getAddr() && initialLabel != finalRfWriteLabel) {
 					cojomRelation.addEdge(lab->getPos(), finalVoReadLabel->getRf());
@@ -351,7 +417,6 @@ void VOCalculator::calcCojomRelation() {
 
 				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
 				if (!finalWriteLabel) continue;
-
 				if (finalWriteLabel->isNotAtomic()) continue;
 				
 				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
