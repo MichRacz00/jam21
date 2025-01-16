@@ -54,42 +54,10 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	//llvm::outs() << cojomRelation << "\n";
 
-	/*
-	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
-	auto sorts = spushRelation.topoSort();
-	spushRelation.allTopoSort([this](auto& sort) {
-        // Print the current topological sort
-        for (const auto& node : sort) {
-            llvm::outs() << node << " ";
-        }
-        llvm::outs() << "\n";
-
-		auto &g = getGraph();
-		bool valid = true;
-
-		for (int i = 0; i < sort.size() - 1; ++i) {
-			auto event = sort[i];
-			auto nextEvent = sort[i + 1];
-
-			auto lab = g.getEventLabel(event);
-			auto nextLab = g.getEventLabel(nextEvent);
-
-			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
-				valid = false;
-				llvm::outs() << lab->getPos() << lab->getPorfView() <<  " " << nextLab->getPos() << nextLab->getPorfView() << "\n"; 
-			}
-
-		}
-
-        // Return false to continue finding all topological sorts
-        return false;
-    });
-	*/
-
-	auto spushRel = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
-	auto volintRel = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
-
+	auto &spushRel = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
 	llvm::outs() << spushRel << "\n";
+
+	auto &volintRel = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	llvm::outs() << volintRel << "\n";
 
 	// Calculate acyclicity by transitive closure and irreflexivity.
@@ -325,25 +293,92 @@ void VOCalculator::clacPushtoRelation() {
 	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 
-	std::vector<Event> allEvents;
-	for (const auto *lab : labels(g)) {
-		allEvents.push_back(lab->getPos());
-	}
-	Calculator::GlobalRelation pushRelation(allEvents);
-	
+	std::vector<Event> domain;
 	for (auto event : spushRelation.getElems()) {
-		for (auto adjEvent : getAdj(event, ExecutionGraph::RelationId::spush)) {
-			pushRelation.addEdge(event, *adjEvent);
+		auto adjs = getAdj(event, ExecutionGraph::RelationId::spush);
+		if (0 < adjs.size()) {
+			llvm::outs() << event << "\n";
+			domain.push_back(event);
+			for (auto a : adjs) {
+				llvm::outs() << *a << "\n";
+				domain.push_back(*a);
+			}
 		}
 	}
 
 	for (auto event : volintRelation.getElems()) {
-		for (auto &adjEvent : getAdj(event, ExecutionGraph::RelationId::volint)) {
-			pushRelation.addEdge(event, *adjEvent);
+		auto adjs = getAdj(event, ExecutionGraph::RelationId::volint);
+		if (0 < adjs.size()) {
+			domain.push_back(event);
+			llvm::outs() << event << "\n";
+			for (auto a : adjs) {
+				llvm::outs() << *a << "\n";
+				domain.push_back(*a);
+			}
 		}
 	}
 
-	llvm::outs() << pushRelation << "\n====================================================\n";
+	Calculator::GlobalRelation pushRelation(domain);
+
+	for (auto event : spushRelation.getElems()) {
+		auto initialWriteLab = g.getWriteLabel(event);
+		if (!initialWriteLab) continue;
+
+		for (auto adjEvent : getAdj(event, ExecutionGraph::RelationId::spush)) {
+			auto finalWriteLab = g.getWriteLabel(*adjEvent);
+			if (!finalWriteLab) continue;
+
+			if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
+				pushRelation.addEdge(event, *adjEvent);
+			}
+		}
+	}
+
+	for (auto event : volintRelation.getElems()) {
+		auto initialWriteLab = g.getWriteLabel(event);
+		if (!initialWriteLab) continue;
+
+		for (auto &adjEvent : getAdj(event, ExecutionGraph::RelationId::volint)) {
+			auto finalWriteLab = g.getWriteLabel(*adjEvent);
+			if (!finalWriteLab) continue;
+
+			if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
+				pushRelation.addEdge(event, *adjEvent);
+			}
+		}
+	}
+
+	llvm::outs() << pushRelation << "\n";
+
+	//return;
+
+	pushRelation.allTopoSort([this](auto& sort) {
+        // Print the current topological sort
+        for (const auto& node : sort) {
+            llvm::outs() << node << " ";
+        }
+        llvm::outs() << "\n";
+
+		auto &g = getGraph();
+		bool valid = true;
+
+		for (int i = 0; i < sort.size() - 1; ++i) {
+			auto event = sort[i];
+			auto nextEvent = sort[i + 1];
+
+			auto lab = g.getEventLabel(event);
+			auto nextLab = g.getEventLabel(nextEvent);
+
+			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
+				valid = false;
+				llvm::outs() << lab->getPos() << lab->getPorfView() <<  " " << nextLab->getPos() << nextLab->getPorfView() << "\n"; 
+			}
+
+		}
+
+        // Return false to continue finding all topological sorts
+        return false;
+    });
 }
 
 void VOCalculator::calcCojomRelation() {
