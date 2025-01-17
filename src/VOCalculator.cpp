@@ -3,6 +3,10 @@
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
 
+// Helper relations used to calculate vo
+Calculator::GlobalRelation spush;
+Calculator::GlobalRelation volint;
+
 /**
  * Adds all events as the set of possible events,
  * from where relations can start.
@@ -77,17 +81,13 @@ void VOCalculator::calcRaRelation() {
 	auto &g = getGraph();
 	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
 
-	for (const auto *lab : labels(g)) {
-		auto events = getPrevMany(lab, 3);
+	for (EventLabel* lab : labels(g)) {
+		auto events = getPrevMany(*lab, 3);
 		if (events.empty()) continue;
 
-		auto thirdEventLabel = events[0].get();
-		auto secondEventLabel = events[1].get();
-		auto firstEventLabel = events[2].get();
-
 		// The event in the middle must be rel/acq or stronger
-		if (!(secondEventLabel->isAtLeastAcquire() || secondEventLabel->isAtLeastRelease())) continue;
-		raRelation.addEdge(firstEventLabel->getPos(), thirdEventLabel->getPos());
+		if (!(events[1].isAtLeastAcquire() || events[1].isAtLeastRelease())) continue;
+		raRelation.addEdge(events[0].getPos(), events[3].getPos());
 	}
 }
 
@@ -118,9 +118,9 @@ void VOCalculator::calcSvoRelation() {
 	}
 }
 
-void VOCalculator::calcSpushRelation() {
+Calculator::GlobalRelation VOCalculator::calcSpushRelation() {
 	auto &g = getGraph();
-	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	Calculator::GlobalRelation spush;
 
 	for (const auto *lab : labels(g)) {
 		auto events = getPrevMany(lab, 3);
@@ -133,8 +133,10 @@ void VOCalculator::calcSpushRelation() {
 		// The event in the middle must be a SC fence
 		if (!(isFence(secondEventLabel) && secondEventLabel->isSC())) continue;
 
-		spushRelation.addEdge(firstEventLabel->getPos(), thirdEventLabel->getPos());
+		tryAddEdge(firstEventLabel->getPos(), thirdEventLabel->getPos(), &spush);
 	}
+
+	return spush;
 }
 
 void VOCalculator::calcVolintRelation() {
@@ -503,30 +505,29 @@ std::vector<Event> VOCalculator::getAdj(Event event, Calculator::GlobalRelation 
 }
 
 /**
- * Retrieves n previous events starting from and including the given event,
- * and returns them in a vector. The events are ordered from the most recent 
- * (largest timestamp) to the oldest (smallest timestamp), with the given 
- * event at the start of the vector. If fewer than n previous events are available, 
+ * Retrieves n previous event labels starting from and including the given event,
+ * and returns them in a vector. The initial event is in the front of the vector,
+ * followed by n-1 previous events. If there are less than n prev events,
  * an empty vector is returned.
  */
-std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(const EventLabel *lab, int n) {
+std::vector<EventLabel> VOCalculator::getPrevMany(EventLabel &lab, int n) {
 	auto &g = getGraph();
-	std::vector<std::unique_ptr<EventLabel>> labels;
-	auto currentLab = lab;
+	std::vector<EventLabel> labels;
+	EventLabel* currentLab = &lab;
 
     while (n > 0) {
-        labels.push_back(currentLab->clone());
-        auto prevLab = g.getPreviousNonEmptyLabel(currentLab);
-		/*
-		* If the previous label is the same as the current label, and there are
-        * more labels left to retrieve, return an empty vector indicating
-        * insufficient previous labels.
-		*/ 
-		if (prevLab == currentLab && n > 1) return {};
+        labels.push_back(*currentLab);
+        auto prevLab = g.getPreviousLabel(currentLab);
+
+		// Prevoius label is a null pointer, there are no previous events
+		// Return a null pointer as there are less than n events left
+		if (prevLab) return {};
+
 		currentLab = prevLab;
         --n;
     }
 
+	std::reverse(labels.begin(), labels.end());
     return labels;
 }
 
