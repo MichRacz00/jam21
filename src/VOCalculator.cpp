@@ -14,6 +14,7 @@ Calculator::GlobalRelation poloc;
 Calculator::GlobalRelation pushto;
 
 Calculator::GlobalRelation vvo;
+Calculator::GlobalRelation vo;
 
 /**
  * Adds all events as the set of possible events,
@@ -27,24 +28,11 @@ void VOCalculator::initCalc()
 	for (const auto *lab : labels(g)) {
 		allEvents.push_back(lab->getPos());
 	}
-
-	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
-	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
-	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
-	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 
-	raRelation = Calculator::GlobalRelation(allEvents);
-	svoRelation = Calculator::GlobalRelation(allEvents);
-	spushRelation = Calculator::GlobalRelation(allEvents);
-	volintRelation = Calculator::GlobalRelation(allEvents);
-	vvoRelation = Calculator::GlobalRelation(allEvents);
 	voRelation = Calculator::GlobalRelation(allEvents);
 	cojomRelation = Calculator::GlobalRelation(allEvents);
-	polocRelation = Calculator::GlobalRelation(allEvents);
 
 	return;
 }
@@ -61,15 +49,17 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	pushto = calcPushtoRelation();
 
 	vvo = calcVvoRelation();
-	
-	calcVoRelation();
+	vo = calcVoRelation();
+
+	llvm::outs() << vo;
+
 	calcCojomRelation();
 
 	auto &g = getGraph();
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 
 	// Calculate acyclicity by transitive closure and irreflexivity.
-	calcTransC(ExecutionGraph::RelationId::cojom);
+	//calcTransC(ExecutionGraph::RelationId::cojom);
 	bool isAcyclic = cojomRelation.isIrreflexive();
 
 	return Calculator::CalculationResult(false, isAcyclic);
@@ -298,27 +288,12 @@ Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
 
 Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 	auto &g = getGraph();
-	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
-	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
+	auto vvoTrans = vvo;
 
-	calcTransC(ExecutionGraph::RelationId::vvo);
-
-	// Add all edges from vvo to vo
-	for (auto &event : vvoRelation.getElems()) {
-		for (auto &adj : getAdj(event, ExecutionGraph::RelationId::vvo)) {
-			voRelation.addEdge(event, *adj);
-		}
-	}
-
-	// Add all edges from po-loc to vo
-	for (auto &event : polocRelation.getElems()) {
-		for (auto &adj : getAdj(event, ExecutionGraph::RelationId::poloc)) {
-			voRelation.addEdge(event, *adj);
-		}
-	}
-
-	return voRelation;
+	calcTransC(&vvoTrans);
+	Calculator::GlobalRelation vo = merge({vvoTrans, poloc});
+	return vo;
 }
 
 Calculator::GlobalRelation VOCalculator::calcCoww() {
@@ -514,25 +489,24 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(EventLabel &l
     return labels;
 }
 
-void VOCalculator::calcTransC(ExecutionGraph::RelationId relationId) {
+void VOCalculator::calcTransC(Calculator::GlobalRelation *relation) {
 	auto &g = getGraph();
-	auto &relation = g.getGlobalRelation(relationId);
 
-	for (auto event : relation.getElems()) {
+	for (auto event : relation->getElems()) {
 		auto lab = g.getEventLabel(event);
-		auto labels = calcTransC(lab, relationId);
+		auto labels = calcTransC(lab, relation);
 
 		for (auto &finalLabel : labels) {
-			relation.addEdge(lab->getPos(), finalLabel->getPos());
+			tryAddEdge(lab->getPos(), finalLabel->getPos(), relation);
 		}
 	}
 }
 
-std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLabel *lab, ExecutionGraph::RelationId relationId) {
+std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation) {
 	auto &g = getGraph();
 	std::vector<std::unique_ptr<EventLabel>> labels;
 	
-	auto adj = getAdj(lab->getPos(), relationId);
+	auto adj = getAdj(lab->getPos(), *relation);
 
 	// This label in the graph does not have any outgoing edges
 	if (adj.size() == 0) {
@@ -540,13 +514,13 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
 	}
 
 	// Perform depth first serch, accumulate visited nodes in a vector
-	for (auto adjEvent : getAdj(lab->getPos(), relationId)) {
-		auto adjLab = g.getEventLabel(*adjEvent);
+	for (auto adjEvent : getAdj(lab->getPos(), *relation)) {
+		auto adjLab = g.getEventLabel(adjEvent);
 		labels.push_back(adjLab->clone());
 
 		if (adjLab == lab) return labels;
 
-		auto labTrans = calcTransC(adjLab, relationId);
+		auto labTrans = calcTransC(adjLab, relation);
 		std::move(labTrans.begin(), labTrans.end(), std::back_inserter(labels));
 	}
 
