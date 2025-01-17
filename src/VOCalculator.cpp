@@ -140,9 +140,9 @@ void VOCalculator::calcVolintRelation() {
 		if (events.empty()) continue;
 
 		// Both events must be SC
-		if (!(events[2]->isSC() && events[1]->isSC())) continue;
+		if (!(events[0]->isSC() && events[1]->isSC())) continue;
 
-		volintRelation.addEdge(events[2]->getPos(), events[1]->getPos());
+		volintRelation.addEdge(events[0]->getPos(), events[1]->getPos());
 	}
 }
 
@@ -503,7 +503,7 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(EventLabel &l
 	auto &g = getGraph();
 	std::vector<std::unique_ptr<EventLabel>> labels;
 	EventLabel* currentLab = &lab;
-
+ 
     while (n > 0) {
         labels.push_back(currentLab->clone());
         auto prevLab = g.getPreviousLabel(currentLab);
