@@ -312,17 +312,17 @@ void VOCalculator::clacPushtoRelation() {
 	std::vector<Calculator::GlobalRelation> relations;
 	relations.push_back(spushRelation);
 	relations.push_back(volintRelation);
-
 	auto spushUvolint = merge(relations);
 
-	llvm::outs() << spushRelation << "\n";
-	llvm::outs() << volintRelation << "\n";
-	llvm::outs() << spushUvolint << "\n";
+	Calculator::GlobalRelation pushto;
 
-	Calculator::GlobalRelation temp;
+	for (const auto elem : spushUvolint.getElems()) {
 
-	std::vector<Event> domain;
-	for (auto event : spushRelation.getElems()) {
+		for (auto adjIdx = spushUvolint.adj_begin(elem); adjIdx != spushUvolint.adj_end(elem); ++adjIdx) {
+        	const auto& adjElem = spushUvolint.getElems()[*adjIdx];
+        	pushto.addEdge(elem, adjElem);
+    	}
+
 		auto adjs = getAdj(event, ExecutionGraph::RelationId::spush);
 		if (0 < adjs.size()) {
 			auto initialWriteLab = g.getWriteLabel(event);
@@ -482,6 +482,20 @@ std::vector<Event*> VOCalculator::getAdj(Event lab, ExecutionGraph::RelationId r
 		adjEvents.push_back(&adjLabels[*adj]);
     }
 
+	return adjEvents;
+}
+
+/**
+ * Retrieves all events in the relation that are directly reachable
+ * from the specified event (i.e., all events where an edge from 
+ * the given event terminates).
+ */
+std::vector<Event> VOCalculator::getAdj(Event event, Calculator::GlobalRelation relation) {
+	std::vector<Event> adjEvents;
+	for (auto adjIdx = relation.adj_begin(event); adjIdx != relation.adj_end(event); ++adjIdx) {
+        const auto& adjElem = relation.getElems()[*adjIdx];
+    	adjEvents.push_back(adjElem);
+    }
 	return adjEvents;
 }
 

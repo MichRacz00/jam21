@@ -47,6 +47,8 @@ private:
 
     std::vector<Event*> getAdj(Event lab, ExecutionGraph::RelationId relationId);
 
+    std::vector<Event> getAdj(Event event, Calculator::GlobalRelation relation);
+
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
 
     bool isFence(EventLabel *lab);
