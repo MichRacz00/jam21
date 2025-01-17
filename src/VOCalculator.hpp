@@ -36,6 +36,19 @@ private:
 
     // Other helper relations
     Calculator::GlobalRelation calcPolocRelation();
+    Calculator::GlobalRelation calcPushRelation();
+    Calculator::GlobalRelation calcPushtoRelation();
+
+    // Calculations of visibility orders
+    Calculator::GlobalRelation calcVvoRelation();
+    Calculator::GlobalRelation calcVoRelation();
+
+    // Helper relations for co-jom
+    Calculator::GlobalRelation calcCoww();
+    Calculator::GlobalRelation calcCowr();
+    Calculator::GlobalRelation calcCorw();
+    Calculator::GlobalRelation calcCorr();
+    Calculator::GlobalRelation calcCojom();
 
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);
     void calcTransC(ExecutionGraph::RelationId relationId);
@@ -45,11 +58,6 @@ private:
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
 
     Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
-    void calcVvoRelation();
-    void calcVoRelation();
-
-    Calculator::GlobalRelation calcPushRelation();
-    Calculator::GlobalRelation calcPushtoRelation();
 
     void calcCojomRelation();
 

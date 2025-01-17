@@ -9,8 +9,10 @@ Calculator::GlobalRelation svo;
 
 Calculator::GlobalRelation spush;
 Calculator::GlobalRelation volint;
+Calculator::GlobalRelation push; // spush U volint
 
 Calculator::GlobalRelation poloc;
+Calculator::GlobalRelation pushto;
 
 /**
  * Adds all events as the set of possible events,
@@ -53,8 +55,10 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	spush = calcSpushRelation();
 	volint = calcVolintRelation();
+	push = calcPushRelation();
 
 	poloc = calcPolocRelation();
+	pushto = calcPushtoRelation();
 
 	calcVvoRelation();
 	calcPushtoRelation();
@@ -63,7 +67,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	auto &g = getGraph();
 
-	llvm::outs() << poloc << "\n";
+	llvm::outs() << pushto << "\n";
 
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	//llvm::outs() << cojomRelation << "\n";
@@ -197,22 +201,89 @@ Calculator::GlobalRelation VOCalculator::calcPolocRelation() {
 }
 
 /**
- * Returns a union of all given relations.
+ * Calculates push relation which is union of spush
+ * and volint, where initial and final events 
+ * are writes to the same memory location.
  */
-Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRelation> relations) {
-	Calculator::GlobalRelation merged;
-	for (const auto relation : relations) {
-		for (const auto elem : relation) {
-			for (auto adjIdx = relation.adj_begin(elem); adjIdx != relation.adj_end(elem); ++adjIdx) {
-        		const auto& adjElem = relation.getElems()[*adjIdx];
-        		tryAddEdge(elem, adjElem, &merged);
-    		}
+Calculator::GlobalRelation VOCalculator::calcPushRelation() {
+	auto &g = getGraph();
+	auto spushUvolint = merge({spush, volint});
+
+	Calculator::GlobalRelation push;
+
+	for (const auto elem : spushUvolint.getElems()) {
+		// Initial label must be a write
+		auto initialWriteLab = g.getWriteLabel(elem);
+		if (!initialWriteLab) continue;
+
+		const auto adjElems = getAdj(elem, spushUvolint);
+		if (0 < adjElems.size()) {
+			for (const auto adjElem : adjElems) {
+				// Final label must be a write
+				auto finalWriteLab = g.getWriteLabel(adjElem);
+				if (!finalWriteLab) continue;
+
+				// If both accesses are to the same location and
+				// are not an identity, add an edge in push
+				if (initialWriteLab->getAddr() == finalWriteLab->getAddr()
+					&& initialWriteLab != finalWriteLab) {
+					tryAddEdge(elem, adjElem, &push);
+				}
+			}
 		}
 	}
-	return merged;
+
+	return push;
 }
 
-void VOCalculator::calcVvoRelation() {
+/**
+ * Calculates pushto relation which is a trace order (total order)
+ * in the push relation (volint U spush). Total order must not
+ * violate po U rf. Total order is calculated using topological
+ * sort. All sorts are checked for violations of po U rf relation.
+ */
+Calculator::GlobalRelation VOCalculator::calcPushtoRelation() {
+	std::vector<Event> topologicalSort;
+
+	push.allTopoSort([this, &topologicalSort](auto& sort) {
+		auto &g = getGraph();
+
+		for (int i = 1; i < sort.size(); ++i) {
+			auto event = sort[i - 1];
+			auto nextEvent = sort[i];
+
+			auto lab = g.getEventLabel(event);
+			auto nextLab = g.getEventLabel(nextEvent);
+
+			// Topological order (linearisation) violates po U rf view
+			// Namely, if porf vector clocks are out of order
+			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
+				// Reject this topological order
+				return false;
+			}
+		}
+
+		topologicalSort = sort;
+        return true;
+    });
+
+	/**
+	 * Create relation object, add total order edges
+	 * reflecting event order from the list
+	 * topologicalSort [A, B, C]
+	 * relation: (A) -> (B), (B) -> (C)
+	 */
+	Calculator::GlobalRelation pushto(topologicalSort);
+	for (int i = 1; i < pushto.size(); i ++) {
+		const auto elemA = pushto.getElems()[i - 1];
+		const auto elemB = pushto.getElems()[i];
+		tryAddEdge(elemA, elemB, &pushto);
+	}
+
+	return pushto;
+}
+
+Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
 	auto &g = getGraph();
 	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
 	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
@@ -291,11 +362,11 @@ void VOCalculator::calcVvoRelation() {
 
 		// TODO add pushto
 	}
+
+	return vvoRelation;
 }
 
-
-
-void VOCalculator::calcVoRelation() {
+Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 	auto &g = getGraph();
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
@@ -316,97 +387,38 @@ void VOCalculator::calcVoRelation() {
 			voRelation.addEdge(event, *adj);
 		}
 	}
+
+	return voRelation;
 }
 
-/**
- * Calculates push relation which is union of spush
- * and volint, where initial and final events 
- * are writes to the same memory location.
- */
-Calculator::GlobalRelation VOCalculator::calcPushRelation() {
+Calculator::GlobalRelation VOCalculator::calcCoww() {
 	auto &g = getGraph();
-	auto spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
-	auto volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 
-	std::vector<Calculator::GlobalRelation> relations;
-	relations.push_back(spushRelation);
-	relations.push_back(volintRelation);
-	auto spushUvolint = merge(relations);
+	for (auto *lab : labels(g)) {
+		// First label must be a write
+		auto initialLabel = dynamic_cast<WriteLabel*>(lab);
+		if (!initialLabel) continue;
 
-	Calculator::GlobalRelation push;
-
-	for (const auto elem : spushUvolint.getElems()) {
-		// Initial label must be a write
-		auto initialWriteLab = g.getWriteLabel(elem);
-		if (!initialWriteLab) continue;
-
-		const auto adjElems = getAdj(elem, spushUvolint);
-		if (0 < adjElems.size()) {
-			for (const auto adjElem : adjElems) {
-				// Final label must be a write
-				auto finalWriteLab = g.getWriteLabel(adjElem);
-				if (!finalWriteLab) continue;
-
-				// If both accesses are to the same location and
-				// are not an identity, add an edge in push
-				if (initialWriteLab->getAddr() == finalWriteLab->getAddr()
-					&& initialWriteLab != finalWriteLab) {
-					tryAddEdge(elem, adjElem, &push);
-				}
-			}
-		}
+		//for (finalEvent : getAdj(initialLabel, vo));
 	}
-
-	return push;
 }
 
 /**
- * Calculates pushto relation which is a trace order (total order)
- * in the push relation (volint U spush). Total order must not
- * violate po U rf. Total order is calculated using topological
- * sort. All sorts are checked for violations of po U rf relation.
+ * Returns a union of all given relations.
  */
-Calculator::GlobalRelation VOCalculator::calcPushtoRelation() {
-	auto const push = calcPushRelation();
-	std::vector<Event> topologicalSort;
-
-	push.allTopoSort([this, &topologicalSort](auto& sort) {
-		auto &g = getGraph();
-
-		for (int i = 1; i < sort.size(); ++i) {
-			auto event = sort[i - 1];
-			auto nextEvent = sort[i];
-
-			auto lab = g.getEventLabel(event);
-			auto nextLab = g.getEventLabel(nextEvent);
-
-			// Topological order (linearisation) violates po U rf view
-			// Namely, if porf vector clocks are out of order
-			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
-				// Reject this topological order
-				return false;
-			}
+Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRelation> relations) {
+	Calculator::GlobalRelation merged;
+	for (const auto relation : relations) {
+		for (const auto elem : relation) {
+			for (auto adjIdx = relation.adj_begin(elem); adjIdx != relation.adj_end(elem); ++adjIdx) {
+        		const auto& adjElem = relation.getElems()[*adjIdx];
+        		tryAddEdge(elem, adjElem, &merged);
+    		}
 		}
-
-		topologicalSort = sort;
-        return true;
-    });
-
-	/**
-	 * Create relation object, add total order edges
-	 * reflecting event order from the list
-	 * topologicalSort [A, B, C]
-	 * relation: (A) -> (B), (B) -> (C)
-	 */
-	Calculator::GlobalRelation pushto(topologicalSort);
-	for (int i = 1; i < pushto.size(); i ++) {
-		const auto elemA = pushto.getElems()[i - 1];
-		const auto elemB = pushto.getElems()[i];
-		tryAddEdge(elemA, elemB, &pushto);
 	}
-
-	return pushto;
+	return merged;
 }
+
 
 void VOCalculator::calcCojomRelation() {
 	auto &g = getGraph();
