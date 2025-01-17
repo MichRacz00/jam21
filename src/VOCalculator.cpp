@@ -67,7 +67,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	auto &g = getGraph();
 
-	llvm::outs() << pushto << "\n";
+	//llvm::outs() << pushto << "\n";
 
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	//llvm::outs() << cojomRelation << "\n";
@@ -291,6 +291,9 @@ Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
+	auto svoPush = calcComp(ra, push);
+	llvm::outs() << svoPush;
+
 	for (const auto *lab : labels(g)) {
 		
 		// Calculations for rf; (spush U volint)
@@ -424,8 +427,23 @@ Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRel
  */
 Calculator::GlobalRelation VOCalculator::calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB) {
 	Calculator::GlobalRelation compo;
+	const auto elemsB = relB.getElems();
+
 	for (auto eventInit : relA) {
 		for (auto eventTrans : getAdj(eventInit, relA)) {
+
+			// Check if intermediate event (final in A, initial in B)
+			// exists in B. If not, skip this event
+			bool transExist = false;
+			for (const auto elemB : elemsB) {
+				if (eventTrans == elemB) {
+					transExist = true;
+					break;
+				}
+			}
+
+			if (!transExist) continue;
+
 			for (auto eventFinal : getAdj(eventTrans, relB)) {
 				tryAddEdge(eventInit, eventFinal, &compo);
 			}
