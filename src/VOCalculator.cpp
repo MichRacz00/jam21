@@ -55,10 +55,10 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	//llvm::outs() << cojomRelation << "\n";
 
 	auto &spushRel = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
-	llvm::outs() << spushRel << "\n";
+	//llvm::outs() << spushRel << "\n";
 
 	auto &volintRel = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
-	llvm::outs() << volintRel << "\n";
+	//llvm::outs() << volintRel << "\n";
 
 	// Calculate acyclicity by transitive closure and irreflexivity.
 	calcTransC(ExecutionGraph::RelationId::cojom);
@@ -293,15 +293,27 @@ void VOCalculator::clacPushtoRelation() {
 	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 
+	Calculator::GlobalRelation temp;
+
 	std::vector<Event> domain;
 	for (auto event : spushRelation.getElems()) {
 		auto adjs = getAdj(event, ExecutionGraph::RelationId::spush);
 		if (0 < adjs.size()) {
-			llvm::outs() << event << "\n";
-			domain.push_back(event);
+			auto initialWriteLab = g.getWriteLabel(event);
+			if (!initialWriteLab) continue;
+			//domain.push_back(event);
+
 			for (auto a : adjs) {
-				llvm::outs() << *a << "\n";
-				domain.push_back(*a);
+				auto finalWriteLab = g.getWriteLabel(*a);
+				if (!finalWriteLab) continue;
+				if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
+					tryAddNode(event, &temp);
+					tryAddNode(*a, &temp);
+					//llvm::outs() << "Add edge: " << event << temp.getIndex(event) << " -> " << *a <<  temp.getIndex(*a) << "\n";
+					//temp.addEdge(event, *a);
+					//tryAddEdge(event, *a, &temp);
+				}
+				//domain.push_back(*a);
 			}
 		}
 	}
@@ -309,17 +321,28 @@ void VOCalculator::clacPushtoRelation() {
 	for (auto event : volintRelation.getElems()) {
 		auto adjs = getAdj(event, ExecutionGraph::RelationId::volint);
 		if (0 < adjs.size()) {
-			domain.push_back(event);
-			llvm::outs() << event << "\n";
+			auto initialWriteLab = g.getWriteLabel(event);
+			if (!initialWriteLab) continue;
+			//domain.push_back(event);
+
 			for (auto a : adjs) {
-				llvm::outs() << *a << "\n";
-				domain.push_back(*a);
+				auto finalWriteLab = g.getWriteLabel(*a);
+				if (!finalWriteLab) continue;
+				if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
+					tryAddNode(event, &temp);
+					tryAddNode(*a, &temp);
+					//tryAddEdge(event, *a, &temp);
+				}
+
+				//llvm::outs() << event << "->" << *a << "\n";
+				//domain.push_back(*a);
 			}
 		}
 	}
 
-	Calculator::GlobalRelation pushRelation(domain);
+	llvm::outs() << temp << "\n";
 
+	/*
 	for (auto event : spushRelation.getElems()) {
 		auto initialWriteLab = g.getWriteLabel(event);
 		if (!initialWriteLab) continue;
@@ -347,17 +370,17 @@ void VOCalculator::clacPushtoRelation() {
 			}
 		}
 	}
-
-	llvm::outs() << pushRelation << "\n";
+	*/
 
 	//return;
 
+	/*
 	pushRelation.allTopoSort([this](auto& sort) {
         // Print the current topological sort
         for (const auto& node : sort) {
-            llvm::outs() << node << " ";
+            //llvm::outs() << node << " ";
         }
-        llvm::outs() << "\n";
+        //llvm::outs() << "\n";
 
 		auto &g = getGraph();
 		bool valid = true;
@@ -371,14 +394,15 @@ void VOCalculator::clacPushtoRelation() {
 
 			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
 				valid = false;
-				llvm::outs() << lab->getPos() << lab->getPorfView() <<  " " << nextLab->getPos() << nextLab->getPorfView() << "\n"; 
+				return false;
 			}
 
 		}
 
         // Return false to continue finding all topological sorts
-        return false;
+        return true;
     });
+	*/
 }
 
 void VOCalculator::calcCojomRelation() {
@@ -540,6 +564,58 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
 	}
 
 	return labels;
+}
+
+void VOCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation) {
+	bool resA = tryAddNode(b, relation);
+	bool resB = tryAddNode(a, relation);
+
+	llvm::outs() << *relation << "\n";
+
+	if (!resA) a = findEquiv(a, *relation);
+	if (!resB) b = findEquiv(b, *relation);
+
+	llvm::outs() << relation->size() << "\n";
+
+	relation->addEdge(a, b);
+}
+
+/**
+ * Adds node to a relation only if the node is not a part of that relation.
+ * Returns true if node was added, false if that node already exists in the relation.
+ * Node is added by creating a new relation, will all edges and nodes from the old
+ * relation and including the new node. This is to work around the broken addEdge()
+ * funciont in AdjList().
+ */
+bool VOCalculator::tryAddNode(Event event, Calculator::GlobalRelation *relation) {
+	for (const auto elem : relation->getElems()) {
+		if (event == elem) return false;
+	}
+
+	auto newElems = relation->getElems();
+	newElems.push_back(event);
+	Calculator::GlobalRelation newRelation(newElems);
+
+	for (const auto& elem : relation->getElems()) {
+    	for (auto adjIdx = relation->adj_begin(elem); adjIdx != relation->adj_end(elem); ++adjIdx) {
+        	const auto& adjElem = relation->getElems()[*adjIdx];
+        	newRelation.addEdge(elem, adjElem);
+    	}
+	}
+
+	*relation = newRelation;
+	return true;
+}
+
+/**
+ * Given an event, returns an equivalent event (the same stamp) from
+ * a given relation. If not found, returns a null pointer.
+ */
+Event VOCalculator::findEquiv(Event ev, const Calculator::GlobalRelation relation) {
+	for (const auto eq : relation.getElems()) {
+		if (ev == eq) return eq;
+	}
+	return Event();
 }
 
 bool VOCalculator::isFence(EventLabel *lab) {

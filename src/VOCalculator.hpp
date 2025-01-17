@@ -1,5 +1,5 @@
-#ifndef __PSC_CALCULATOR_HPP__
-#define __PSC_CALCULATOR_HPP__
+#ifndef __VO_CALCULATOR_HPP__
+#define __VO_CALCULATOR_HPP__
 
 #include "Calculator.hpp"
 #include "ExecutionGraph.hpp"
@@ -32,6 +32,8 @@ private:
 
     std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, ExecutionGraph::RelationId relationId);
 
+    void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
+
     void calcRaRelation();
     void calcSvoRelation();
     void calcSpushRelation();
@@ -44,9 +46,13 @@ private:
 
     std::vector<Event*> getAdj(Event lab, ExecutionGraph::RelationId relationId);
 
+    bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
+
+    Event findEquiv(Event, const Calculator::GlobalRelation relation);
+
     bool isFence(EventLabel *lab);
-	bool isRead(EventLabel *lab);
+    bool isRead(EventLabel *lab);
 	bool isWrite(EventLabel *lab);
 };
 
-#endif /* __PSC_CALCULATOR_HPP__ */
+#endif /* __VO_CALCULATOR_HPP__ */

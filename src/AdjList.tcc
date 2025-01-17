@@ -32,6 +32,15 @@ void AdjList<T, H>::addNode(T a)
 
 	calculatedTransC = false;
 	transC.push_back(llvm::BitVector(id));
+
+	for (size_t i = 0; i < transC.size(); ++i) {
+        llvm::outs() << this->getElems()[i] << i << ": ";
+        for (size_t j = 0; j < transC[i].size(); ++j) {
+            llvm::outs() << transC[i][j] << " ";  // Print the value at position [i][j]
+        }
+        llvm::outs() << "\n";
+    }
+
 	return;
 }
 
