@@ -45,7 +45,7 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	calcVolintRelation();
 	calcVvoRelation();
 	calcPolocRelation();
-	clacPushtoRelation();
+	calcPushtoRelation();
 	calcVoRelation();
 	calcCojomRelation();
 
@@ -304,7 +304,12 @@ void VOCalculator::calcVoRelation() {
 	}
 }
 
-void VOCalculator::clacPushtoRelation() {
+/**
+ * Calculates push relation which is union of spush
+ * and volint, where initial and final events 
+ * are writes to the same memory location.
+ */
+Calculator::GlobalRelation VOCalculator::calcPushRelation() {
 	auto &g = getGraph();
 	auto spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
 	auto volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
@@ -314,81 +319,79 @@ void VOCalculator::clacPushtoRelation() {
 	relations.push_back(volintRelation);
 	auto spushUvolint = merge(relations);
 
-	Calculator::GlobalRelation pushto;
+	Calculator::GlobalRelation push;
 
 	for (const auto elem : spushUvolint.getElems()) {
+		// Initial label must be a write
+		auto initialWriteLab = g.getWriteLabel(elem);
+		if (!initialWriteLab) continue;
 
-		for (auto adjIdx = spushUvolint.adj_begin(elem); adjIdx != spushUvolint.adj_end(elem); ++adjIdx) {
-        	const auto& adjElem = spushUvolint.getElems()[*adjIdx];
-        	pushto.addEdge(elem, adjElem);
-    	}
-
-		auto adjs = getAdj(event, ExecutionGraph::RelationId::spush);
-		if (0 < adjs.size()) {
-			auto initialWriteLab = g.getWriteLabel(event);
-			if (!initialWriteLab) continue;
-			//domain.push_back(event);
-
-			for (auto a : adjs) {
-				auto finalWriteLab = g.getWriteLabel(*a);
+		const auto adjElems = getAdj(elem, spushUvolint);
+		if (0 < adjElems.size()) {
+			for (const auto adjElem : adjElems) {
+				// Final label must be a write
+				auto finalWriteLab = g.getWriteLabel(adjElem);
 				if (!finalWriteLab) continue;
-				if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
-					tryAddEdge(event, *a, &temp);
+
+				// If both accesses are to the same location and
+				// are not an identity, add an edge in push
+				if (initialWriteLab->getAddr() == finalWriteLab->getAddr()
+					&& initialWriteLab != finalWriteLab) {
+					tryAddEdge(elem, adjElem, &push);
 				}
-				//domain.push_back(*a);
 			}
 		}
 	}
 
-	for (auto event : volintRelation.getElems()) {
-		auto adjs = getAdj(event, ExecutionGraph::RelationId::volint);
-		if (0 < adjs.size()) {
-			auto initialWriteLab = g.getWriteLabel(event);
-			if (!initialWriteLab) continue;
-			//domain.push_back(event);
+	return push;
+}
 
-			for (auto a : adjs) {
-				auto finalWriteLab = g.getWriteLabel(*a);
-				if (!finalWriteLab) continue;
-				if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
-					tryAddEdge(event, *a, &temp);
-				}
+/**
+ * Calculates pushto relation which is a trace order (total order)
+ * in the push relation (volint U spush). Total order must not
+ * violate po U rf. Total order is calculated using topological
+ * sort. All sorts are checked for violations of po U rf relation.
+ */
+Calculator::GlobalRelation VOCalculator::calcPushtoRelation() {
+	auto const push = calcPushRelation();
+	std::vector<Event> topologicalSort;
 
-				//llvm::outs() << event << "->" << *a << "\n";
-				//domain.push_back(*a);
-			}
-		}
-	}
-
-	llvm::outs() << temp << "\n";
-
-	temp.allTopoSort([this](auto& sort) {
+	push.allTopoSort([this, &topologicalSort](auto& sort) {
 		auto &g = getGraph();
-		bool valid = true;
 
-		for (int i = 0; i < sort.size() - 1; ++i) {
-			auto event = sort[i];
-			auto nextEvent = sort[i + 1];
+		for (int i = 1; i < sort.size(); ++i) {
+			auto event = sort[i - 1];
+			auto nextEvent = sort[i];
 
 			auto lab = g.getEventLabel(event);
 			auto nextLab = g.getEventLabel(nextEvent);
 
+			// Topological order (linearisation) violates po U rf view
+			// Namely, if porf vector clocks are out of order
 			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
-				valid = false;
+				// Reject this topological order
 				return false;
 			}
-
 		}
 
-		// Print the current topological sort
-        for (const auto& node : sort) {
-            llvm::outs() << node << " ";
-        }
-        llvm::outs() << "\n";
-
-        // Return false to continue finding all topological sorts
+		topologicalSort = sort;
         return true;
     });
+
+	/**
+	 * Create relation object, add total order edges
+	 * reflecting event order from the list
+	 * topologicalSort [A, B, C]
+	 * relation: (A) -> (B), (B) -> (C)
+	 */
+	Calculator::GlobalRelation pushto(topologicalSort);
+	for (int i = 1; i < pushto.size(); i ++) {
+		const auto elemA = pushto.getElems()[i - 1];
+		const auto elemB = pushto.getElems()[i];
+		tryAddEdge(elemA, elemB, &pushto);
+	}
+
+	return pushto;
 }
 
 void VOCalculator::calcCojomRelation() {
