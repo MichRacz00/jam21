@@ -419,6 +419,20 @@ Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRel
 	return merged;
 }
 
+/**
+ * Given two relations, computes their composition relA; relB
+ */
+Calculator::GlobalRelation VOCalculator::calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB) {
+	Calculator::GlobalRelation compo;
+	for (auto eventInit : relA) {
+		for (auto eventTrans : getAdj(eventInit, relA)) {
+			for (auto eventFinal : getAdj(eventTrans, relB)) {
+				tryAddEdge(eventInit, eventFinal, &compo);
+			}
+		}
+	}
+	return compo;
+}
 
 void VOCalculator::calcCojomRelation() {
 	auto &g = getGraph();

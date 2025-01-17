@@ -25,6 +25,7 @@ public:
 	}
 
 private:
+    // ------ Functions to calculate relations ------
     // Relations that capture rel/acq memory events
     Calculator::GlobalRelation calcRaRelation();
     Calculator::GlobalRelation calcSvoRelation();
@@ -50,14 +51,20 @@ private:
     Calculator::GlobalRelation calcCorr();
     Calculator::GlobalRelation calcCojom();
 
+
+    // ------ Helper functions on relations ------
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);
+
+    Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
+    Calculator::GlobalRelation calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB);
+    
     void calcTransC(ExecutionGraph::RelationId relationId);
 
     std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, ExecutionGraph::RelationId relationId);
 
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
 
-    Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
+    
 
     void calcCojomRelation();
 
