@@ -155,6 +155,22 @@ void VOCalculator::calcVolintRelation() {
 	}
 }
 
+/**
+ * Returns a union of all given relations.
+ */
+Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRelation> relations) {
+	Calculator::GlobalRelation merged;
+	for (const auto relation : relations) {
+		for (const auto elem : relation) {
+			for (auto adjIdx = relation.adj_begin(elem); adjIdx != relation.adj_end(elem); ++adjIdx) {
+        		const auto& adjElem = relation.getElems()[*adjIdx];
+        		tryAddEdge(elem, adjElem, &merged);
+    		}
+		}
+	}
+	return merged;
+}
+
 void VOCalculator::calcVvoRelation() {
 	auto &g = getGraph();
 	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
@@ -290,8 +306,18 @@ void VOCalculator::calcVoRelation() {
 
 void VOCalculator::clacPushtoRelation() {
 	auto &g = getGraph();
-	auto &spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
-	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+	auto spushRelation = g.getGlobalRelation(ExecutionGraph::RelationId::spush);
+	auto volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+
+	std::vector<Calculator::GlobalRelation> relations;
+	relations.push_back(spushRelation);
+	relations.push_back(volintRelation);
+
+	auto spushUvolint = merge(relations);
+
+	llvm::outs() << spushRelation << "\n";
+	llvm::outs() << volintRelation << "\n";
+	llvm::outs() << spushUvolint << "\n";
 
 	Calculator::GlobalRelation temp;
 
@@ -307,11 +333,7 @@ void VOCalculator::clacPushtoRelation() {
 				auto finalWriteLab = g.getWriteLabel(*a);
 				if (!finalWriteLab) continue;
 				if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
-					tryAddNode(event, &temp);
-					tryAddNode(*a, &temp);
-					//llvm::outs() << "Add edge: " << event << temp.getIndex(event) << " -> " << *a <<  temp.getIndex(*a) << "\n";
-					//temp.addEdge(event, *a);
-					//tryAddEdge(event, *a, &temp);
+					tryAddEdge(event, *a, &temp);
 				}
 				//domain.push_back(*a);
 			}
@@ -329,9 +351,7 @@ void VOCalculator::clacPushtoRelation() {
 				auto finalWriteLab = g.getWriteLabel(*a);
 				if (!finalWriteLab) continue;
 				if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
-					tryAddNode(event, &temp);
-					tryAddNode(*a, &temp);
-					//tryAddEdge(event, *a, &temp);
+					tryAddEdge(event, *a, &temp);
 				}
 
 				//llvm::outs() << event << "->" << *a << "\n";
@@ -342,46 +362,7 @@ void VOCalculator::clacPushtoRelation() {
 
 	llvm::outs() << temp << "\n";
 
-	/*
-	for (auto event : spushRelation.getElems()) {
-		auto initialWriteLab = g.getWriteLabel(event);
-		if (!initialWriteLab) continue;
-
-		for (auto adjEvent : getAdj(event, ExecutionGraph::RelationId::spush)) {
-			auto finalWriteLab = g.getWriteLabel(*adjEvent);
-			if (!finalWriteLab) continue;
-
-			if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
-				pushRelation.addEdge(event, *adjEvent);
-			}
-		}
-	}
-
-	for (auto event : volintRelation.getElems()) {
-		auto initialWriteLab = g.getWriteLabel(event);
-		if (!initialWriteLab) continue;
-
-		for (auto &adjEvent : getAdj(event, ExecutionGraph::RelationId::volint)) {
-			auto finalWriteLab = g.getWriteLabel(*adjEvent);
-			if (!finalWriteLab) continue;
-
-			if (initialWriteLab->getAddr() == finalWriteLab->getAddr() && initialWriteLab != finalWriteLab) {
-				pushRelation.addEdge(event, *adjEvent);
-			}
-		}
-	}
-	*/
-
-	//return;
-
-	/*
-	pushRelation.allTopoSort([this](auto& sort) {
-        // Print the current topological sort
-        for (const auto& node : sort) {
-            //llvm::outs() << node << " ";
-        }
-        //llvm::outs() << "\n";
-
+	temp.allTopoSort([this](auto& sort) {
 		auto &g = getGraph();
 		bool valid = true;
 
@@ -399,10 +380,15 @@ void VOCalculator::clacPushtoRelation() {
 
 		}
 
+		// Print the current topological sort
+        for (const auto& node : sort) {
+            llvm::outs() << node << " ";
+        }
+        llvm::outs() << "\n";
+
         // Return false to continue finding all topological sorts
         return true;
     });
-	*/
 }
 
 void VOCalculator::calcCojomRelation() {
@@ -567,21 +553,14 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
 }
 
 void VOCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation) {
-	bool resA = tryAddNode(b, relation);
-	bool resB = tryAddNode(a, relation);
-
-	llvm::outs() << *relation << "\n";
-
-	if (!resA) a = findEquiv(a, *relation);
-	if (!resB) b = findEquiv(b, *relation);
-
-	llvm::outs() << relation->size() << "\n";
-
+	bool resA = tryAddNode(a, relation);
+	bool resB = tryAddNode(b, relation);
 	relation->addEdge(a, b);
 }
 
 /**
- * Adds node to a relation only if the node is not a part of that relation.
+ * Adds node to a relation only if the node is not already in that relation.
+ * 
  * Returns true if node was added, false if that node already exists in the relation.
  * Node is added by creating a new relation, will all edges and nodes from the old
  * relation and including the new node. This is to work around the broken addEdge()
@@ -589,13 +568,16 @@ void VOCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *rela
  */
 bool VOCalculator::tryAddNode(Event event, Calculator::GlobalRelation *relation) {
 	for (const auto elem : relation->getElems()) {
+		// Node already exists
 		if (event == elem) return false;
 	}
 
+	// Create new relation with the same nodes plus the new one
 	auto newElems = relation->getElems();
 	newElems.push_back(event);
 	Calculator::GlobalRelation newRelation(newElems);
 
+	// Add all edges from old relation to new
 	for (const auto& elem : relation->getElems()) {
     	for (auto adjIdx = relation->adj_begin(elem); adjIdx != relation->adj_end(elem); ++adjIdx) {
         	const auto& adjElem = relation->getElems()[*adjIdx];
@@ -605,17 +587,6 @@ bool VOCalculator::tryAddNode(Event event, Calculator::GlobalRelation *relation)
 
 	*relation = newRelation;
 	return true;
-}
-
-/**
- * Given an event, returns an equivalent event (the same stamp) from
- * a given relation. If not found, returns a null pointer.
- */
-Event VOCalculator::findEquiv(Event ev, const Calculator::GlobalRelation relation) {
-	for (const auto eq : relation.getElems()) {
-		if (ev == eq) return eq;
-	}
-	return Event();
 }
 
 bool VOCalculator::isFence(EventLabel *lab) {

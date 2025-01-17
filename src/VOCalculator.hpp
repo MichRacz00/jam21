@@ -38,7 +38,8 @@ private:
     void calcSvoRelation();
     void calcSpushRelation();
     void calcVolintRelation();
-	void calcVvoRelation();
+    Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
+    void calcVvoRelation();
     void calcPolocRelation();
     void calcVoRelation();
     void clacPushtoRelation();
@@ -47,8 +48,6 @@ private:
     std::vector<Event*> getAdj(Event lab, ExecutionGraph::RelationId relationId);
 
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
-
-    Event findEquiv(Event, const Calculator::GlobalRelation relation);
 
     bool isFence(EventLabel *lab);
     bool isRead(EventLabel *lab);
