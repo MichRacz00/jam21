@@ -95,26 +95,22 @@ void VOCalculator::calcSvoRelation() {
 	auto &g = getGraph();
 	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
 
-	for (const auto *lab : labels(g)) {
-		auto events = getPrevMany(lab, 5);
+	for (EventLabel* lab : labels(g)) {
+		auto events = getPrevMany(*lab, 5);
 		if (events.empty()) continue;
 
-		auto lastEvent = events[0].get();
-		auto fourthEvent = events[1].get();
-		auto thirdEvent = events[2].get();
-		auto secondEvent = events[3].get();
-		auto firstEvent = events[4].get();
-
 		// The second event must be a release fence
-		if (!(secondEvent->getOrdering() == llvm::AtomicOrdering::Release && isFence(secondEvent))) continue;
+		if (!(events[1].getOrdering() == llvm::AtomicOrdering::Release && isFence(&events[1]))) continue;
 
 		// The third event must be either a read or a write
-		if (!(isRead(thirdEvent) || isWrite(thirdEvent))) continue;
+		auto thirdRead = dynamic_cast<ReadLabel*>(&events[2]);
+		auto thirdWrite = dynamic_cast<WriteLabel*>(&events[2]);
+		if (!thirdRead && !thirdWrite) continue;
 
 		// The fourth event must be an acquire fence
-		if (!(fourthEvent->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(fourthEvent))) continue;
+		if (!(events[3].getOrdering() == llvm::AtomicOrdering::Acquire && isFence(&events[3]))) continue;
 
-		svoRelation.addEdge(firstEvent->getPos(), lastEvent->getPos());
+		svoRelation.addEdge(events[0].getPos(), events[4].getPos());
 	}
 }
 
