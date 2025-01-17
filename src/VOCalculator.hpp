@@ -39,6 +39,7 @@ private:
     Calculator::GlobalRelation calcPolocRelation();
     Calculator::GlobalRelation calcPushRelation();
     Calculator::GlobalRelation calcPushtoRelation();
+    Calculator::GlobalRelation calcRfRelation();
 
     // Calculations of visibility orders
     Calculator::GlobalRelation calcVvoRelation();
@@ -57,7 +58,7 @@ private:
 
     Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
     Calculator::GlobalRelation calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB);
-    
+
     void calcTransC(ExecutionGraph::RelationId relationId);
 
     std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, ExecutionGraph::RelationId relationId);
