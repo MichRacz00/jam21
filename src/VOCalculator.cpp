@@ -9,7 +9,6 @@ Calculator::GlobalRelation svo;
 
 Calculator::GlobalRelation spush;
 Calculator::GlobalRelation volint;
-Calculator::GlobalRelation push; // spush U volint
 
 Calculator::GlobalRelation poloc;
 Calculator::GlobalRelation pushto;
@@ -55,7 +54,6 @@ Calculator::CalculationResult VOCalculator::doCalc()
 
 	spush = calcSpushRelation();
 	volint = calcVolintRelation();
-	push = calcPushRelation();
 
 	poloc = calcPolocRelation();
 	pushto = calcPushtoRelation();
@@ -244,6 +242,7 @@ Calculator::GlobalRelation VOCalculator::calcPushRelation() {
  */
 Calculator::GlobalRelation VOCalculator::calcPushtoRelation() {
 	std::vector<Event> topologicalSort;
+	const auto push = calcPushRelation();
 
 	push.allTopoSort([this, &topologicalSort](auto& sort) {
 		auto &g = getGraph();
@@ -291,7 +290,10 @@ Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 	auto &vvoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vvo);
 
-	auto svoPush = calcComp(ra, push);
+	auto spushUvolint = merge({spush, volint});
+	auto allRelations = merge({svo, ra, spushUvolint, pushto});
+
+	auto svoPush = calcComp(ra, spushUvolint);
 	llvm::outs() << svoPush;
 
 	for (const auto *lab : labels(g)) {
