@@ -27,7 +27,7 @@ public:
 private:
     void initRaRelation();
 
-    std::vector<EventLabel> getPrevMany(EventLabel &lab, int n);
+    std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);
     void calcTransC(ExecutionGraph::RelationId relationId);
 
     std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, ExecutionGraph::RelationId relationId);

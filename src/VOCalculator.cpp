@@ -86,8 +86,8 @@ void VOCalculator::calcRaRelation() {
 		if (events.empty()) continue;
 
 		// The event in the middle must be rel/acq or stronger
-		if (!(events[1].isAtLeastAcquire() || events[1].isAtLeastRelease())) continue;
-		raRelation.addEdge(events[0].getPos(), events[3].getPos());
+		if (!(events[1]->isAtLeastAcquire() || events[1]->isAtLeastRelease())) continue;
+		raRelation.addEdge(events[0]->getPos(), events[2]->getPos());
 	}
 }
 
@@ -100,17 +100,17 @@ void VOCalculator::calcSvoRelation() {
 		if (events.empty()) continue;
 
 		// The second event must be a release fence
-		if (!(events[1].getOrdering() == llvm::AtomicOrdering::Release && isFence(&events[1]))) continue;
+		if (!(events[1]->getOrdering() == llvm::AtomicOrdering::Release && isFence(events[1].get()))) continue;
 
 		// The third event must be either a read or a write
-		auto thirdRead = dynamic_cast<ReadLabel*>(&events[2]);
-		auto thirdWrite = dynamic_cast<WriteLabel*>(&events[2]);
+		auto thirdRead = dynamic_cast<ReadLabel*>(events[2].get());
+		auto thirdWrite = dynamic_cast<WriteLabel*>(events[2].get());
 		if (!thirdRead && !thirdWrite) continue;
 
 		// The fourth event must be an acquire fence
-		if (!(events[3].getOrdering() == llvm::AtomicOrdering::Acquire && isFence(&events[3]))) continue;
+		if (!(events[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(events[3].get()))) continue;
 
-		svoRelation.addEdge(events[0].getPos(), events[4].getPos());
+		svoRelation.addEdge(events[0]->getPos(), events[4]->getPos());
 	}
 }
 
@@ -118,18 +118,14 @@ Calculator::GlobalRelation VOCalculator::calcSpushRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation spush;
 
-	for (const auto *lab : labels(g)) {
-		auto events = getPrevMany(lab, 3);
+	for (EventLabel* lab : labels(g)) {
+		auto events = getPrevMany(*lab, 3);
 		if (events.empty()) continue;
 
-		auto thirdEventLabel = events[0].get();
-		auto secondEventLabel = events[1].get();
-		auto firstEventLabel = events[2].get();
-
 		// The event in the middle must be a SC fence
-		if (!(isFence(secondEventLabel) && secondEventLabel->isSC())) continue;
+		if (!(isFence(events[1].get()) && events[1]->isSC())) continue;
 
-		tryAddEdge(firstEventLabel->getPos(), thirdEventLabel->getPos(), &spush);
+		tryAddEdge(events[0]->getPos(), events[2]->getPos(), &spush);
 	}
 
 	return spush;
@@ -139,17 +135,14 @@ void VOCalculator::calcVolintRelation() {
 	auto &g = getGraph();
 	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
 
-	for (const auto *lab : labels(g)) {
-		auto events = getPrevMany(lab, 2);
+	for (EventLabel* lab : labels(g)) {
+		auto events = getPrevMany(*lab, 2);
 		if (events.empty()) continue;
 
-		auto secondEventLabel = events[0].get();
-		auto firstEventLabel = events[1].get();
-
 		// Both events must be SC
-		if (!(firstEventLabel->isSC() && secondEventLabel->isSC())) continue;
+		if (!(events[2]->isSC() && events[1]->isSC())) continue;
 
-		volintRelation.addEdge(firstEventLabel->getPos(), secondEventLabel->getPos());
+		volintRelation.addEdge(events[2]->getPos(), events[1]->getPos());
 	}
 }
 
@@ -506,18 +499,18 @@ std::vector<Event> VOCalculator::getAdj(Event event, Calculator::GlobalRelation 
  * followed by n-1 previous events. If there are less than n prev events,
  * an empty vector is returned.
  */
-std::vector<EventLabel> VOCalculator::getPrevMany(EventLabel &lab, int n) {
+std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(EventLabel &lab, int n) {
 	auto &g = getGraph();
-	std::vector<EventLabel> labels;
+	std::vector<std::unique_ptr<EventLabel>> labels;
 	EventLabel* currentLab = &lab;
 
     while (n > 0) {
-        labels.push_back(*currentLab);
+        labels.push_back(currentLab->clone());
         auto prevLab = g.getPreviousLabel(currentLab);
 
 		// Prevoius label is a null pointer, there are no previous events
 		// Return a null pointer as there are less than n events left
-		if (prevLab) return {};
+		if (!prevLab) return {};
 
 		currentLab = prevLab;
         --n;
