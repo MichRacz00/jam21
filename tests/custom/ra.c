@@ -10,7 +10,7 @@ atomic_int i;
 void *thread_1(void *unused)
 {
 	atomic_thread_fence(memory_order_release);
-	int n_local = atomic_load_explicit(&n, memory_order_release);
+	int n_local = atomic_load_explicit(&n, memory_order_acq_rel);
 	atomic_store_explicit(&i, n_local, memory_order_seq_cst);
 	atomic_thread_fence(memory_order_seq_cst);
 	return NULL;

@@ -4,8 +4,13 @@
 #include "GraphIterators.hpp"
 
 // Helper relations used to calculate vo
+Calculator::GlobalRelation ra;
+Calculator::GlobalRelation svo;
+
 Calculator::GlobalRelation spush;
 Calculator::GlobalRelation volint;
+
+Calculator::GlobalRelation poloc;
 
 /**
  * Adds all events as the set of possible events,
@@ -43,17 +48,22 @@ void VOCalculator::initCalc()
 
 Calculator::CalculationResult VOCalculator::doCalc()
 {
-	calcRaRelation();
-	calcSvoRelation();
-	calcSpushRelation();
-	calcVolintRelation();
+	ra = calcRaRelation();
+	svo = calcSvoRelation();
+
+	spush = calcSpushRelation();
+	volint = calcVolintRelation();
+
+	poloc = calcPolocRelation();
+
 	calcVvoRelation();
-	calcPolocRelation();
 	calcPushtoRelation();
 	calcVoRelation();
 	calcCojomRelation();
 
 	auto &g = getGraph();
+
+	llvm::outs() << poloc << "\n";
 
 	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	//llvm::outs() << cojomRelation << "\n";
@@ -77,9 +87,9 @@ void VOCalculator::removeAfter(const VectorClock &preds)
 	return;
 }
 
-void VOCalculator::calcRaRelation() {
+Calculator::GlobalRelation VOCalculator::calcRaRelation() {
 	auto &g = getGraph();
-	auto &raRelation = g.getGlobalRelation(ExecutionGraph::RelationId::ra);
+	Calculator::GlobalRelation ra;
 
 	for (EventLabel* lab : labels(g)) {
 		auto events = getPrevMany(*lab, 3);
@@ -87,13 +97,15 @@ void VOCalculator::calcRaRelation() {
 
 		// The event in the middle must be rel/acq or stronger
 		if (!(events[1]->isAtLeastAcquire() || events[1]->isAtLeastRelease())) continue;
-		raRelation.addEdge(events[0]->getPos(), events[2]->getPos());
+		tryAddEdge(events[0]->getPos(), events[2]->getPos(), &ra);
 	}
+
+	return ra;
 }
 
-void VOCalculator::calcSvoRelation() {
+Calculator::GlobalRelation VOCalculator::calcSvoRelation() {
 	auto &g = getGraph();
-	auto &svoRelation = g.getGlobalRelation(ExecutionGraph::RelationId::svo);
+	Calculator::GlobalRelation svo;
 
 	for (EventLabel* lab : labels(g)) {
 		auto events = getPrevMany(*lab, 5);
@@ -110,8 +122,10 @@ void VOCalculator::calcSvoRelation() {
 		// The fourth event must be an acquire fence
 		if (!(events[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(events[3].get()))) continue;
 
-		svoRelation.addEdge(events[0]->getPos(), events[4]->getPos());
+		tryAddEdge(events[0]->getPos(), events[4]->getPos(), &svo);
 	}
+
+	return svo;
 }
 
 Calculator::GlobalRelation VOCalculator::calcSpushRelation() {
@@ -131,9 +145,9 @@ Calculator::GlobalRelation VOCalculator::calcSpushRelation() {
 	return spush;
 }
 
-void VOCalculator::calcVolintRelation() {
+Calculator::GlobalRelation VOCalculator::calcVolintRelation() {
 	auto &g = getGraph();
-	auto &volintRelation = g.getGlobalRelation(ExecutionGraph::RelationId::volint);
+	Calculator::GlobalRelation volint;
 
 	for (EventLabel* lab : labels(g)) {
 		auto events = getPrevMany(*lab, 2);
@@ -142,8 +156,44 @@ void VOCalculator::calcVolintRelation() {
 		// Both events must be SC
 		if (!(events[0]->isSC() && events[1]->isSC())) continue;
 
-		volintRelation.addEdge(events[0]->getPos(), events[1]->getPos());
+		tryAddEdge(events[0]->getPos(), events[1]->getPos(), &volint);
 	}
+
+	return volint;
+}
+
+Calculator::GlobalRelation VOCalculator::calcPolocRelation() {
+	auto &g = getGraph();
+	Calculator::GlobalRelation poloc;
+
+	for (auto eventLabel : labels(g)) {
+		auto initialMemoryLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
+		if (!initialMemoryLabel) continue;
+
+		bool finalLabelFound = false;
+		auto nextLabel = eventLabel;
+		while (!finalLabelFound) {
+			nextLabel = g.getNextLabel(nextLabel);
+			// Reached the end of the thread, terminate
+			if (!nextLabel) break;
+
+			auto nextMemoryLabel = dynamic_cast<MemAccessLabel *>(nextLabel);
+			// is not a memory access label, continue
+			if (!nextMemoryLabel) continue;
+			
+			// Initial and next labels access the same address, return
+			if (initialMemoryLabel->getAddr() == nextMemoryLabel->getAddr()) {
+				finalLabelFound = true;
+				break;
+			}
+		}
+
+		if (finalLabelFound) {
+			tryAddEdge(initialMemoryLabel->getPos(), nextLabel->getPos(), &poloc);
+		}
+	}
+
+	return poloc;
 }
 
 /**
@@ -243,34 +293,7 @@ void VOCalculator::calcVvoRelation() {
 	}
 }
 
-void VOCalculator::calcPolocRelation() {
-	auto &g = getGraph();
-	auto &polocRelation = g.getGlobalRelation(ExecutionGraph::RelationId::poloc);
 
-	for (auto eventLabel : labels(g)) {
-		auto initialMemoryLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
-		if (!initialMemoryLabel) continue;
-
-		bool finalLabelFound = false;
-		auto nextLabel = eventLabel;
-		while (!finalLabelFound) {
-			nextLabel = g.getNextLabel(nextLabel);
-			// Reached the end of the thread, terminate
-			if (!nextLabel) break;
-
-			auto nextMemoryLabel = dynamic_cast<MemAccessLabel *>(nextLabel);
-			// is not a memory access label, continue
-			if (!nextMemoryLabel) continue;
-			
-			// Initial and next labels access the same address, return
-			if (initialMemoryLabel->getAddr() == nextMemoryLabel->getAddr()) finalLabelFound = true;
-		}
-
-		if (finalLabelFound) {
-			polocRelation.addEdge(initialMemoryLabel->getPos(), nextLabel->getPos());
-		}
-	}
-}
 
 void VOCalculator::calcVoRelation() {
 	auto &g = getGraph();

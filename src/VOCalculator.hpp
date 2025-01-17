@@ -25,7 +25,17 @@ public:
 	}
 
 private:
-    void initRaRelation();
+    // Relations that capture rel/acq memory events
+    Calculator::GlobalRelation calcRaRelation();
+    Calculator::GlobalRelation calcSvoRelation();
+
+    // Relations that capture synchronization effects of volotile
+    // memory accesses
+    Calculator::GlobalRelation calcSpushRelation();
+    Calculator::GlobalRelation calcVolintRelation();
+
+    // Other helper relations
+    Calculator::GlobalRelation calcPolocRelation();
 
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);
     void calcTransC(ExecutionGraph::RelationId relationId);
@@ -34,15 +44,8 @@ private:
 
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
 
-    void calcRaRelation();
-    void calcSvoRelation();
-
-    Calculator::GlobalRelation calcSpushRelation();
-    void calcVolintRelation();
-
     Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
     void calcVvoRelation();
-    void calcPolocRelation();
     void calcVoRelation();
 
     Calculator::GlobalRelation calcPushRelation();
