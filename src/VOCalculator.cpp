@@ -16,24 +16,10 @@ Calculator::GlobalRelation pushto;
 Calculator::GlobalRelation vvo;
 Calculator::GlobalRelation vo;
 
-/**
- * Adds all events as the set of possible events,
- * from where relations can start.
-*/
 void VOCalculator::initCalc()
-{	
-	auto &g = getGraph();
-	std::vector<Event> allEvents;
-
-	for (const auto *lab : labels(g)) {
-		allEvents.push_back(lab->getPos());
-	}
-	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
-	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-
-	voRelation = Calculator::GlobalRelation(allEvents);
-	cojomRelation = Calculator::GlobalRelation(allEvents);
-
+{
+	// Relations are calculated from scratch everytime doCalc()
+	// is called, nothing to do on init
 	return;
 }
 
@@ -51,18 +37,13 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	vvo = calcVvoRelation();
 	vo = calcVoRelation();
 
-	//llvm::outs() << vo;
-
-	calcCojom();
-
-	calcCojomRelation();
-
 	auto &g = getGraph();
-	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+	auto &cojomGraph = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
+	
+	auto cojom = calcCojom();
+	bool isAcyclic = cojom.isIrreflexive();
 
-	// Calculate acyclicity by transitive closure and irreflexivity.
-	//calcTransC(ExecutionGraph::RelationId::cojom);
-	bool isAcyclic = cojomRelation.isIrreflexive();
+	cojomGraph = cojom;
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
@@ -290,7 +271,6 @@ Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
 
 Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 	auto &g = getGraph();
-	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
 	auto vvoTrans = vvo;
 
 	calcTransC(&vvoTrans);
@@ -299,14 +279,7 @@ Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 }
 
 Calculator::GlobalRelation VOCalculator::calcCojom() {
-	Calculator::GlobalRelation cojom;
-
-	llvm::outs() << calcCoww() << "\n";
-	llvm::outs() << calcCowr() << "\n";
-	llvm::outs() << calcCorw() << "\n";
-	llvm::outs() << calcCorr() << "\n";
-	//calcCorw();
-
+	Calculator::GlobalRelation cojom = merge({calcCoww(), calcCowr(), calcCorw(), calcCorr()});
 	return cojom;
 }
 
@@ -498,101 +471,6 @@ Calculator::GlobalRelation VOCalculator::calcComp(Calculator::GlobalRelation rel
 	return compo;
 }
 
-void VOCalculator::calcCojomRelation() {
-	auto &g = getGraph();
-	auto &voRelation = g.getGlobalRelation(ExecutionGraph::RelationId::vo);
-	auto &cojomRelation = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-
-	// add coww, cowr and corw edges
-	for (auto *lab : labels(g)) {
-
-		// First label must allways be a write
-		auto initialLabel = dynamic_cast<WriteLabel *>(lab);
-		if (!initialLabel) continue;
-
-		// Iteratoe over all final VO events
-		for(auto finalVoEvent : getAdj(initialLabel->getPos(), ExecutionGraph::RelationId::vo)) {
-
-			auto finalVoWriteLabel = g.getWriteLabel(*finalVoEvent);
-			if (finalVoWriteLabel) {
-				// If both labels are writes to the same address,
-				// and are not the same, then this event is in coww
-				if(initialLabel->getAddr() == finalVoWriteLabel->getAddr() && initialLabel != finalVoWriteLabel) {
-					cojomRelation.addEdge(lab->getPos(), *finalVoEvent);
-				}
-			}
-			
-			/*
-			 * If the event in VO is a read, with RF^-1 pointg
-			 * to a write to the same location add this relation to cojom
-			 */
-			auto finalVoReadLabel = g.getReadLabel(*finalVoEvent);
-			if (finalVoReadLabel) {
-				auto finalRfWriteLabel = g.getWriteLabel(finalVoReadLabel->getRf());
-				if (!finalRfWriteLabel) continue;
-
-				if (initialLabel->getAddr() == finalRfWriteLabel->getAddr() && initialLabel != finalRfWriteLabel) {
-					cojomRelation.addEdge(lab->getPos(), finalVoReadLabel->getRf());
-				}
-			}
-
-			/*
-			 * Add corw edges. Carru out the same check as for coww,
-			 * except for the next event in PO.
-			 */
-			auto finalLabel = g.getEventLabel(*finalVoEvent);
-			if (!finalLabel) continue;
-			auto finalPoLabel = g.getNextLabel(finalLabel);
-			if (!finalPoLabel) continue;
-
-			auto finalPoWriteLabel = dynamic_cast<WriteLabel *>(finalPoLabel);
-			if (finalPoWriteLabel) {
-				if (initialLabel->getAddr() == finalPoWriteLabel->getAddr() && initialLabel != finalPoWriteLabel) {
-					cojomRelation.addEdge(lab->getPos(), finalPoWriteLabel->getPos());
-				}
-			}
-		}
-
-		/*
-		 * Add corr edges. Find four events W -rf-> R -po-> R <-rf- W,
-		 * flip the last rf relation. Writes must be opaque or stronger
-		 * and to the same address.
-		 */
-		auto initialWriteLabel = dynamic_cast<WriteLabel *>(lab);
-		if (initialWriteLabel) {
-			if (initialWriteLabel->isNotAtomic()) continue;
-
-			for (auto initialReadEvent : initialWriteLabel->getReadersList()) {
-
-				auto finalReadLabel = dynamic_cast<ReadLabel *>(g.getNextLabel(initialReadEvent));
-				if (!finalReadLabel) continue;
-
-				auto finalWriteLabel = dynamic_cast<WriteLabel *>(g.getEventLabel(finalReadLabel->getRf()));
-				if (!finalWriteLabel) continue;
-				if (finalWriteLabel->isNotAtomic()) continue;
-				
-				if (initialWriteLabel->getAddr() == finalWriteLabel->getAddr() && initialWriteLabel != finalWriteLabel) {
-					cojomRelation.addEdge(initialWriteLabel->getPos(), finalWriteLabel->getPos());
-				}
-			}
-		}
-	}
-}
-
-//TODO remove
-std::vector<Event*> VOCalculator::getAdj(Event lab, ExecutionGraph::RelationId relationId) {
-	auto &g = getGraph();
-	auto relation = g.getGlobalRelation(relationId);
-	auto adjLabels = relation.getElems();
-	std::vector<Event*> adjEvents;
-
-	for (auto adj = relation.adj_begin(lab); adj != relation.adj_end(lab); ++adj) {
-		adjEvents.push_back(&adjLabels[*adj]);
-    }
-
-	return adjEvents;
-}
-
 /**
  * Retrieves all events in the relation that are directly reachable
  * from the specified event (i.e., all events where an edge from 
@@ -724,49 +602,6 @@ bool VOCalculator::isFence(EventLabel *lab) {
 		case EventLabel::EL_DskFsync:
 		case EventLabel::EL_DskSync:
 		case EventLabel::EL_DskPbarrier:
-			return true;
-		default:
-			return false;
-	}
-}
-
-bool VOCalculator::isRead(EventLabel *lab) {
-	switch (lab->getKind()) {
-		case EventLabel::EL_Read:
-		case EventLabel::EL_BWaitRead:
-		case EventLabel::EL_SpeculativeRead:
-		case EventLabel::EL_ConfirmingRead:
-		case EventLabel::EL_DskRead:
-		case EventLabel::EL_CasRead:
-		case EventLabel::EL_LockCasRead:
-		case EventLabel::EL_TrylockCasRead:
-		case EventLabel::EL_HelpedCasRead:
-		case EventLabel::EL_ConfirmingCasRead:
-		case EventLabel::EL_FaiRead:
-		case EventLabel::EL_BIncFaiRead:
-			return true;
-		default:
-			return false;
-	}
-}
-
-bool VOCalculator::isWrite(EventLabel *lab) {
-	switch (lab->getKind()) {
-		case EventLabel::EL_Write:
-		case EventLabel::EL_BInitWrite:
-		case EventLabel::EL_BDestroyWrite:
-		case EventLabel::EL_UnlockWrite:
-		case EventLabel::EL_CasWrite:
-		case EventLabel::EL_LockCasWrite:
-		case EventLabel::EL_TrylockCasWrite:
-		case EventLabel::EL_HelpedCasWrite:
-		case EventLabel::EL_ConfirmingCasWrite:
-		case EventLabel::EL_FaiWrite:
-		case EventLabel::EL_BIncFaiWrite:
-		case EventLabel::EL_DskWrite:
-		case EventLabel::EL_DskMdWrite:
-		case EventLabel::EL_DskDirWrite:
-		case EventLabel::EL_DskJnlWrite:
 			return true;
 		default:
 			return false;

@@ -55,6 +55,7 @@ private:
 
     // ------ Helper functions on relations ------
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);
+    std::vector<Event> getAdj(Event event, Calculator::GlobalRelation relation);
 
     Calculator::GlobalRelation merge(std::vector<Calculator::GlobalRelation> relations);
     Calculator::GlobalRelation calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB);
@@ -65,19 +66,7 @@ private:
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
 
-    
-
-    void calcCojomRelation();
-
-    std::vector<Event*> getAdj(Event lab, ExecutionGraph::RelationId relationId);
-
-    std::vector<Event> getAdj(Event event, Calculator::GlobalRelation relation);
-
-    
-
     bool isFence(EventLabel *lab);
-    bool isRead(EventLabel *lab);
-	bool isWrite(EventLabel *lab);
 };
 
 #endif /* __VO_CALCULATOR_HPP__ */
