@@ -297,7 +297,9 @@ Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 }
 
 Calculator::GlobalRelation VOCalculator::calcCojom() {
-	
+	Calculator::GlobalRelation cojom;
+
+	return cojom;
 }
 
 /**
@@ -364,6 +366,80 @@ Calculator::GlobalRelation VOCalculator::calcCowr() {
 	}
 
 	return cowr;
+}
+
+/**
+ * Calculation of WWco(vo; po)
+ */
+Calculator::GlobalRelation VOCalculator::calcCorw() {
+	auto &g = getGraph();
+	Calculator::GlobalRelation corw;
+
+	for (auto elem : vo.getElems()) {
+		// First label must be a write
+		auto initialLab = g.getWriteLabel(elem);
+		if (!initialLab) continue;
+
+		for (auto finalElem : getAdj(elem, vo)) {
+			// Get next label in PO
+			auto middleLab = g.getEventLabel(finalElem);
+			if (!middleLab) continue;
+			auto finalLab = g.getNextLabel(middleLab);
+			if (!finalLab) continue;
+
+			// Must be a write label
+			auto finalWriteLab = dynamic_cast<WriteLabel*>(finalLab);
+
+			// If writes to the same location and are not an identity
+			if (initialLab->getAddr() == finalWriteLab->getAddr()
+				&& initialLab != finalWriteLab) {
+					tryAddEdge(elem, finalLab->getPos(), &corw);
+			}
+		}
+	}
+
+	return corw;
+}
+
+/**
+ * Calculation of WWco(rf; po; rf^-1)
+ */
+Calculator::GlobalRelation VOCalculator::calcCorr() {
+	auto &g = getGraph();
+	Calculator::GlobalRelation corr;
+
+	for (auto lab : labels(g)) {
+		// First labels must be a write that is opaque, rel/acq or volotile
+		auto initWriteLab = dynamic_cast<WriteLabel*>(lab);
+		if (initWriteLab->isNotAtomic()) continue;
+
+		// Iterate over all reads that read from the inital write
+		for (auto initReadLab : initWriteLab->getReadersList()) {
+			// Fina all next read labels in PO
+			auto finalReadLab = dynamic_cast<ReadLabel*>(g.getNextLabel(initReadLab));
+			if (!finalReadLab) continue;
+
+			// Get writes where RF points from
+			auto finalWriteEvent = finalReadLab->getRf();
+			auto finalWriteLab = g.getWriteLabel(finalWriteEvent);
+			if (!finalWriteLab) {
+				// Should never trigger
+				continue;
+			}
+
+			// Final write must be opaque, rel/acq or volotile
+			if (finalWriteLab->isNotAtomic()) continue;
+
+			// Only add to relation if both writes access the same location
+			// and are not the same write
+			if (initWriteLab->getAddr() == finalWriteLab->getAddr()
+				&& initWriteLab != finalWriteLab) {
+					tryAddEdge(lab->getPos(), finalWriteEvent, &corr);
+				}
+		}
+	}
+
+	return corr;
 }
 
 /**
