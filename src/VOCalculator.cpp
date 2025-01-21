@@ -51,7 +51,9 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	vvo = calcVvoRelation();
 	vo = calcVoRelation();
 
-	llvm::outs() << vo;
+	//llvm::outs() << vo;
+
+	calcCojom();
 
 	calcCojomRelation();
 
@@ -299,6 +301,12 @@ Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 Calculator::GlobalRelation VOCalculator::calcCojom() {
 	Calculator::GlobalRelation cojom;
 
+	llvm::outs() << calcCoww() << "\n";
+	llvm::outs() << calcCowr() << "\n";
+	llvm::outs() << calcCorw() << "\n";
+	llvm::outs() << calcCorr() << "\n";
+	//calcCorw();
+
 	return cojom;
 }
 
@@ -389,6 +397,7 @@ Calculator::GlobalRelation VOCalculator::calcCorw() {
 
 			// Must be a write label
 			auto finalWriteLab = dynamic_cast<WriteLabel*>(finalLab);
+			if (!finalWriteLab) continue;
 
 			// If writes to the same location and are not an identity
 			if (initialLab->getAddr() == finalWriteLab->getAddr()
@@ -411,6 +420,7 @@ Calculator::GlobalRelation VOCalculator::calcCorr() {
 	for (auto lab : labels(g)) {
 		// First labels must be a write that is opaque, rel/acq or volotile
 		auto initWriteLab = dynamic_cast<WriteLabel*>(lab);
+		if (!initWriteLab) continue;
 		if (initWriteLab->isNotAtomic()) continue;
 
 		// Iterate over all reads that read from the inital write
