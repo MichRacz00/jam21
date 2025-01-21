@@ -63,6 +63,7 @@ private:
     std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation);
 
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
+    bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
 
     
 
@@ -72,7 +73,7 @@ private:
 
     std::vector<Event> getAdj(Event event, Calculator::GlobalRelation relation);
 
-    bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
+    
 
     bool isFence(EventLabel *lab);
     bool isRead(EventLabel *lab);

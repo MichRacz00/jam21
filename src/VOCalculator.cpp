@@ -296,16 +296,74 @@ Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 	return vo;
 }
 
+Calculator::GlobalRelation VOCalculator::calcCojom() {
+	
+}
+
+/**
+ * Calculation of WWco(vo)
+ */
 Calculator::GlobalRelation VOCalculator::calcCoww() {
 	auto &g = getGraph();
+	Calculator::GlobalRelation coww;
 
-	for (auto *lab : labels(g)) {
+	for (auto elem : vo.getElems()) {
 		// First label must be a write
-		auto initialLabel = dynamic_cast<WriteLabel*>(lab);
-		if (!initialLabel) continue;
+		auto intialLab = g.getWriteLabel(elem);
+		if (!intialLab) continue;
 
-		//for (finalEvent : getAdj(initialLabel, vo));
+		for (auto finalElem : getAdj(elem, vo)) {
+			// Final label must be a write
+			auto finalLab = g.getWriteLabel(finalElem);
+			if (!finalLab) continue;
+
+			// If writes to the same location and are not an identity
+			if (intialLab->getAddr() == finalLab->getAddr()
+				&& intialLab != finalLab) {
+					tryAddEdge(elem, finalElem, &coww);
+				}
+		}
 	}
+
+	return coww;
+}
+
+/**
+ * Calculation fo WWco(vo; rf^-1)
+ */
+Calculator::GlobalRelation VOCalculator::calcCowr() {
+	auto &g = getGraph();
+	Calculator::GlobalRelation cowr;
+
+	for (auto elem : vo.getElems()) {
+		// First label must be a write
+		auto initialLab = g.getWriteLabel(elem);
+		if (!initialLab) continue;
+
+		for (auto finalElem : getAdj(elem, vo)) {
+			// Final label of VO must be a read to create RF^-1
+			auto middleReadLab = g.getReadLabel(finalElem);
+			if (!middleReadLab) continue;
+
+			// Get write associated by RF
+			auto finalWriteElem = middleReadLab->getRf();
+			auto finalWriteLab = g.getWriteLabel(finalWriteElem);
+			if (!finalWriteLab) {
+				// Should never be triggered becaouse read must
+				// allways have a corresponding write
+				// Better than segfault
+				continue;
+			}
+
+			// If writes to the same location and are not an identity
+			if (initialLab->getAddr() == finalWriteLab->getAddr()
+				&& elem != finalWriteElem) {
+					tryAddEdge(elem, finalWriteElem, &cowr);
+				}
+		}
+	}
+
+	return cowr;
 }
 
 /**
@@ -435,6 +493,7 @@ void VOCalculator::calcCojomRelation() {
 	}
 }
 
+//TODO remove
 std::vector<Event*> VOCalculator::getAdj(Event lab, ExecutionGraph::RelationId relationId) {
 	auto &g = getGraph();
 	auto relation = g.getGlobalRelation(relationId);
@@ -489,6 +548,10 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(EventLabel &l
     return labels;
 }
 
+/**
+ * Modifies the relation by inlcuding exhaustive transitive closure
+ * for all nodes in the graph.
+ */
 void VOCalculator::calcTransC(Calculator::GlobalRelation *relation) {
 	auto &g = getGraph();
 
@@ -527,6 +590,10 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
 	return labels;
 }
 
+/**
+ * Adds an edge from a to b. If either a or b does not exist,
+ * adds them to the relation first.
+ */
 void VOCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation) {
 	bool resA = tryAddNode(a, relation);
 	bool resB = tryAddNode(b, relation);
