@@ -4,10 +4,10 @@
 #include "Calculator.hpp"
 #include "ExecutionGraph.hpp"
 
-class VOCalculator : public Calculator {
+class CojomCalculator : public Calculator {
 
 public:
-	VOCalculator(ExecutionGraph &g) : Calculator(g) {}
+	CojomCalculator(ExecutionGraph &g) : Calculator(g) {}
 
 	/* Overrided Calculator methods */
 
@@ -21,7 +21,7 @@ public:
 	void removeAfter(const VectorClock &preds) override;
 
 	std::unique_ptr<Calculator> clone(ExecutionGraph &g) const override {
-		return std::make_unique<VOCalculator>(g);
+		return std::make_unique<CojomCalculator>(g);
 	}
 
 private:

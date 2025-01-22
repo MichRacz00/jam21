@@ -24,7 +24,7 @@
 #include "Interpreter.h"
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
-#include "VOCalculator.hpp"
+#include "CojomCalculator.hpp"
 #include "PersistencyChecker.hpp"
 
 JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llvm::Module> mod,
@@ -33,7 +33,7 @@ JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llv
 {
 	auto &g = getGraph();
 	
-	g.addCalculator(std::make_unique<VOCalculator>(g),
+	g.addCalculator(std::make_unique<CojomCalculator>(g),
 			ExecutionGraph::RelationId::cojom, false);
 	
 	return;

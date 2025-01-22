@@ -1,4 +1,4 @@
-#include "VOCalculator.hpp"
+#include "CojomCalculator.hpp"
 #include "Error.hpp"
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
@@ -16,14 +16,14 @@ Calculator::GlobalRelation pushto;
 Calculator::GlobalRelation vvo;
 Calculator::GlobalRelation vo;
 
-void VOCalculator::initCalc()
+void CojomCalculator::initCalc()
 {
 	// Relations are calculated from scratch everytime doCalc()
 	// is called, nothing to do on init
 	return;
 }
 
-Calculator::CalculationResult VOCalculator::doCalc()
+Calculator::CalculationResult CojomCalculator::doCalc()
 {
 	ra = calcRaRelation();
 	svo = calcSvoRelation();
@@ -48,13 +48,13 @@ Calculator::CalculationResult VOCalculator::doCalc()
 	return Calculator::CalculationResult(false, isAcyclic);
 }
 
-void VOCalculator::removeAfter(const VectorClock &preds)
+void CojomCalculator::removeAfter(const VectorClock &preds)
 {
 	/* We do not track anything specific */
 	return;
 }
 
-Calculator::GlobalRelation VOCalculator::calcRaRelation() {
+Calculator::GlobalRelation CojomCalculator::calcRaRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation ra;
 
@@ -70,7 +70,7 @@ Calculator::GlobalRelation VOCalculator::calcRaRelation() {
 	return ra;
 }
 
-Calculator::GlobalRelation VOCalculator::calcSvoRelation() {
+Calculator::GlobalRelation CojomCalculator::calcSvoRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation svo;
 
@@ -95,7 +95,7 @@ Calculator::GlobalRelation VOCalculator::calcSvoRelation() {
 	return svo;
 }
 
-Calculator::GlobalRelation VOCalculator::calcSpushRelation() {
+Calculator::GlobalRelation CojomCalculator::calcSpushRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation spush;
 
@@ -112,7 +112,7 @@ Calculator::GlobalRelation VOCalculator::calcSpushRelation() {
 	return spush;
 }
 
-Calculator::GlobalRelation VOCalculator::calcVolintRelation() {
+Calculator::GlobalRelation CojomCalculator::calcVolintRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation volint;
 
@@ -129,7 +129,7 @@ Calculator::GlobalRelation VOCalculator::calcVolintRelation() {
 	return volint;
 }
 
-Calculator::GlobalRelation VOCalculator::calcPolocRelation() {
+Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation poloc;
 
@@ -168,7 +168,7 @@ Calculator::GlobalRelation VOCalculator::calcPolocRelation() {
  * and volint, where initial and final events 
  * are writes to the same memory location.
  */
-Calculator::GlobalRelation VOCalculator::calcPushRelation() {
+Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
 	auto &g = getGraph();
 	auto spushUvolint = merge({spush, volint});
 
@@ -205,7 +205,7 @@ Calculator::GlobalRelation VOCalculator::calcPushRelation() {
  * violate po U rf. Total order is calculated using topological
  * sort. All sorts are checked for violations of po U rf relation.
  */
-Calculator::GlobalRelation VOCalculator::calcPushtoRelation() {
+Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 	std::vector<Event> topologicalSort;
 	const auto push = calcPushRelation();
 
@@ -247,7 +247,7 @@ Calculator::GlobalRelation VOCalculator::calcPushtoRelation() {
 	return pushto;
 }
 
-Calculator::GlobalRelation VOCalculator::calcRfRelation() {
+Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation rf;
 
@@ -261,7 +261,7 @@ Calculator::GlobalRelation VOCalculator::calcRfRelation() {
 	return rf;
 }
 
-Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
+Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
 	auto spushUvolint = merge({spush, volint});
 	auto allRelations = merge({calcRfRelation(), svo, ra, spushUvolint, pushto});
 
@@ -269,7 +269,7 @@ Calculator::GlobalRelation VOCalculator::calcVvoRelation() {
 	return vvo;
 }
 
-Calculator::GlobalRelation VOCalculator::calcVoRelation() {
+Calculator::GlobalRelation CojomCalculator::calcVoRelation() {
 	auto &g = getGraph();
 	auto vvoTrans = vvo;
 
@@ -278,7 +278,7 @@ Calculator::GlobalRelation VOCalculator::calcVoRelation() {
 	return vo;
 }
 
-Calculator::GlobalRelation VOCalculator::calcCojom() {
+Calculator::GlobalRelation CojomCalculator::calcCojom() {
 	Calculator::GlobalRelation cojom = merge({calcCoww(), calcCowr(), calcCorw(), calcCorr()});
 	return cojom;
 }
@@ -286,7 +286,7 @@ Calculator::GlobalRelation VOCalculator::calcCojom() {
 /**
  * Calculation of WWco(vo)
  */
-Calculator::GlobalRelation VOCalculator::calcCoww() {
+Calculator::GlobalRelation CojomCalculator::calcCoww() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation coww;
 
@@ -314,7 +314,7 @@ Calculator::GlobalRelation VOCalculator::calcCoww() {
 /**
  * Calculation fo WWco(vo; rf^-1)
  */
-Calculator::GlobalRelation VOCalculator::calcCowr() {
+Calculator::GlobalRelation CojomCalculator::calcCowr() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation cowr;
 
@@ -352,7 +352,7 @@ Calculator::GlobalRelation VOCalculator::calcCowr() {
 /**
  * Calculation of WWco(vo; po)
  */
-Calculator::GlobalRelation VOCalculator::calcCorw() {
+Calculator::GlobalRelation CojomCalculator::calcCorw() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation corw;
 
@@ -386,7 +386,7 @@ Calculator::GlobalRelation VOCalculator::calcCorw() {
 /**
  * Calculation of WWco(rf; po; rf^-1)
  */
-Calculator::GlobalRelation VOCalculator::calcCorr() {
+Calculator::GlobalRelation CojomCalculator::calcCorr() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation corr;
 
@@ -428,7 +428,7 @@ Calculator::GlobalRelation VOCalculator::calcCorr() {
 /**
  * Returns a union of all given relations.
  */
-Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRelation> relations) {
+Calculator::GlobalRelation CojomCalculator::merge(std::vector<Calculator::GlobalRelation> relations) {
 	Calculator::GlobalRelation merged;
 	for (const auto relation : relations) {
 		for (const auto elem : relation) {
@@ -444,7 +444,7 @@ Calculator::GlobalRelation VOCalculator::merge(std::vector<Calculator::GlobalRel
 /**
  * Given two relations, computes their composition relA; relB
  */
-Calculator::GlobalRelation VOCalculator::calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB) {
+Calculator::GlobalRelation CojomCalculator::calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB) {
 	Calculator::GlobalRelation compo;
 	const auto elemsB = relB.getElems();
 
@@ -476,7 +476,7 @@ Calculator::GlobalRelation VOCalculator::calcComp(Calculator::GlobalRelation rel
  * from the specified event (i.e., all events where an edge from 
  * the given event terminates).
  */
-std::vector<Event> VOCalculator::getAdj(Event event, Calculator::GlobalRelation relation) {
+std::vector<Event> CojomCalculator::getAdj(Event event, Calculator::GlobalRelation relation) {
 	std::vector<Event> adjEvents;
 	for (auto adjIdx = relation.adj_begin(event); adjIdx != relation.adj_end(event); ++adjIdx) {
         const auto& adjElem = relation.getElems()[*adjIdx];
@@ -491,7 +491,7 @@ std::vector<Event> VOCalculator::getAdj(Event event, Calculator::GlobalRelation 
  * followed by n-1 previous events. If there are less than n prev events,
  * an empty vector is returned.
  */
-std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(EventLabel &lab, int n) {
+std::vector<std::unique_ptr<EventLabel>> CojomCalculator::getPrevMany(EventLabel &lab, int n) {
 	auto &g = getGraph();
 	std::vector<std::unique_ptr<EventLabel>> labels;
 	EventLabel* currentLab = &lab;
@@ -516,7 +516,7 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::getPrevMany(EventLabel &l
  * Modifies the relation by inlcuding exhaustive transitive closure
  * for all nodes in the graph.
  */
-void VOCalculator::calcTransC(Calculator::GlobalRelation *relation) {
+void CojomCalculator::calcTransC(Calculator::GlobalRelation *relation) {
 	auto &g = getGraph();
 
 	for (auto event : relation->getElems()) {
@@ -529,7 +529,7 @@ void VOCalculator::calcTransC(Calculator::GlobalRelation *relation) {
 	}
 }
 
-std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation) {
+std::vector<std::unique_ptr<EventLabel>> CojomCalculator::calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation) {
 	auto &g = getGraph();
 	std::vector<std::unique_ptr<EventLabel>> labels;
 	
@@ -558,7 +558,7 @@ std::vector<std::unique_ptr<EventLabel>> VOCalculator::calcTransC(const EventLab
  * Adds an edge from a to b. If either a or b does not exist,
  * adds them to the relation first.
  */
-void VOCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation) {
+void CojomCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation) {
 	bool resA = tryAddNode(a, relation);
 	bool resB = tryAddNode(b, relation);
 	relation->addEdge(a, b);
@@ -572,7 +572,7 @@ void VOCalculator::tryAddEdge(Event a, Event b, Calculator::GlobalRelation *rela
  * relation and including the new node. This is to work around the broken addEdge()
  * funciont in AdjList().
  */
-bool VOCalculator::tryAddNode(Event event, Calculator::GlobalRelation *relation) {
+bool CojomCalculator::tryAddNode(Event event, Calculator::GlobalRelation *relation) {
 	for (const auto elem : relation->getElems()) {
 		// Node already exists
 		if (event == elem) return false;
@@ -595,7 +595,7 @@ bool VOCalculator::tryAddNode(Event event, Calculator::GlobalRelation *relation)
 	return true;
 }
 
-bool VOCalculator::isFence(EventLabel *lab) {
+bool CojomCalculator::isFence(EventLabel *lab) {
 	switch (lab->getKind())
 	{
 		case EventLabel::EL_Fence:
