@@ -46,12 +46,11 @@ private:
     Calculator::GlobalRelation calcVoRelation();
 
     // Helper relations for co-jom
-    Calculator::GlobalRelation calcCoww();
-    Calculator::GlobalRelation calcCowr();
-    Calculator::GlobalRelation calcCorw();
+    Calculator::GlobalRelation calcCoww(GlobalRelation vo);
+    Calculator::GlobalRelation calcCowr(GlobalRelation vo);
+    Calculator::GlobalRelation calcCorw(GlobalRelation vo);
     Calculator::GlobalRelation calcCorr();
     Calculator::GlobalRelation calcCojom();
-
 
     // ------ Helper functions on relations ------
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);

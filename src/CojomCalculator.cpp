@@ -3,19 +3,6 @@
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
 
-// Helper relations used to calculate vo
-Calculator::GlobalRelation ra;
-Calculator::GlobalRelation svo;
-
-Calculator::GlobalRelation spush;
-Calculator::GlobalRelation volint;
-
-Calculator::GlobalRelation poloc;
-Calculator::GlobalRelation pushto;
-
-Calculator::GlobalRelation vvo;
-Calculator::GlobalRelation vo;
-
 void CojomCalculator::initCalc()
 {
 	// Relations are calculated from scratch everytime doCalc()
@@ -25,18 +12,6 @@ void CojomCalculator::initCalc()
 
 Calculator::CalculationResult CojomCalculator::doCalc()
 {
-	ra = calcRaRelation();
-	svo = calcSvoRelation();
-
-	spush = calcSpushRelation();
-	volint = calcVolintRelation();
-
-	poloc = calcPolocRelation();
-	pushto = calcPushtoRelation();
-
-	vvo = calcVvoRelation();
-	vo = calcVoRelation();
-
 	auto &g = getGraph();
 	auto &cojomGraph = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	
@@ -170,7 +145,7 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
  */
 Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
 	auto &g = getGraph();
-	auto spushUvolint = merge({spush, volint});
+	auto spushUvolint = merge({calcSpushRelation(), calcVolintRelation()});
 
 	Calculator::GlobalRelation push;
 
@@ -262,31 +237,40 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 }
 
 Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
-	auto spushUvolint = merge({spush, volint});
-	auto allRelations = merge({calcRfRelation(), svo, ra, spushUvolint, pushto});
+	auto ra = calcRaRelation();
+	auto svo = calcSvoRelation();
 
-	auto vvo = calcComp(allRelations, spushUvolint);
+	auto spush = calcSpushRelation();
+	auto volint = calcVolintRelation();
+
+	auto pushto = calcPushtoRelation();
+
+	auto spushUvolint = merge({spush, volint});
+	auto pushtoComp = calcComp(pushto, spushUvolint);
+
+	auto vvo = merge({calcRfRelation(), svo, ra, spush, volint, pushtoComp});
 	return vvo;
 }
 
 Calculator::GlobalRelation CojomCalculator::calcVoRelation() {
-	auto &g = getGraph();
-	auto vvoTrans = vvo;
-
+	auto vvoTrans = calcVvoRelation();
+	auto poloc = calcPolocRelation();
 	calcTransC(&vvoTrans);
+
 	Calculator::GlobalRelation vo = merge({vvoTrans, poloc});
 	return vo;
 }
 
 Calculator::GlobalRelation CojomCalculator::calcCojom() {
-	Calculator::GlobalRelation cojom = merge({calcCoww(), calcCowr(), calcCorw(), calcCorr()});
+	auto vo = calcVoRelation();
+	Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	return cojom;
 }
 
 /**
  * Calculation of WWco(vo)
  */
-Calculator::GlobalRelation CojomCalculator::calcCoww() {
+Calculator::GlobalRelation CojomCalculator::calcCoww(GlobalRelation vo) {
 	auto &g = getGraph();
 	Calculator::GlobalRelation coww;
 
@@ -314,7 +298,7 @@ Calculator::GlobalRelation CojomCalculator::calcCoww() {
 /**
  * Calculation fo WWco(vo; rf^-1)
  */
-Calculator::GlobalRelation CojomCalculator::calcCowr() {
+Calculator::GlobalRelation CojomCalculator::calcCowr(GlobalRelation vo) {
 	auto &g = getGraph();
 	Calculator::GlobalRelation cowr;
 
@@ -352,7 +336,7 @@ Calculator::GlobalRelation CojomCalculator::calcCowr() {
 /**
  * Calculation of WWco(vo; po)
  */
-Calculator::GlobalRelation CojomCalculator::calcCorw() {
+Calculator::GlobalRelation CojomCalculator::calcCorw(GlobalRelation vo) {
 	auto &g = getGraph();
 	Calculator::GlobalRelation corw;
 
