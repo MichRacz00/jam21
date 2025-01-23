@@ -16,9 +16,14 @@ Calculator::CalculationResult CojomCalculator::doCalc()
 	auto &cojomGraph = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
 	
 	auto cojom = calcCojom();
+
+	// Calculate acyclicity by taking transitive closure
+	// and checking irreflexivity on it
+	cojomGraph = cojom;
+	calcTransC(&cojom);
 	bool isAcyclic = cojom.isIrreflexive();
 
-	cojomGraph = cojom;
+	llvm::outs() << cojom << "\n";
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
@@ -29,13 +34,19 @@ void CojomCalculator::removeAfter(const VectorClock &preds)
 	return;
 }
 
+/**
+ * Calculates RA relation for the entire graph
+ */
 Calculator::GlobalRelation CojomCalculator::calcRaRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation ra;
 
 	for (EventLabel* lab : labels(g)) {
 		auto events = getPrevMany(*lab, 3);
-		if (events.empty()) continue;
+		if (events.empty()) {
+			// There do not exist 2 previous events to this label
+			continue;
+		}
 
 		// The event in the middle must be rel/acq or stronger
 		if (!(events[1]->isAtLeastAcquire() || events[1]->isAtLeastRelease())) continue;
@@ -45,6 +56,9 @@ Calculator::GlobalRelation CojomCalculator::calcRaRelation() {
 	return ra;
 }
 
+/**
+ * Calculates SVO relation for the entire graph
+ */
 Calculator::GlobalRelation CojomCalculator::calcSvoRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation svo;
@@ -70,6 +84,9 @@ Calculator::GlobalRelation CojomCalculator::calcSvoRelation() {
 	return svo;
 }
 
+/**
+ * Calculates SPUSH relation for the entire graph
+ */
 Calculator::GlobalRelation CojomCalculator::calcSpushRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation spush;
@@ -87,6 +104,9 @@ Calculator::GlobalRelation CojomCalculator::calcSpushRelation() {
 	return spush;
 }
 
+/**
+ * Calculates volint relation for the entire graph
+ */
 Calculator::GlobalRelation CojomCalculator::calcVolintRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation volint;
@@ -95,7 +115,7 @@ Calculator::GlobalRelation CojomCalculator::calcVolintRelation() {
 		auto events = getPrevMany(*lab, 2);
 		if (events.empty()) continue;
 
-		// Both events must be SC
+		// Initial and final events must both be SC
 		if (!(events[0]->isSC() && events[1]->isSC())) continue;
 
 		tryAddEdge(events[0]->getPos(), events[1]->getPos(), &volint);
@@ -104,32 +124,42 @@ Calculator::GlobalRelation CojomCalculator::calcVolintRelation() {
 	return volint;
 }
 
+/**
+ * Calculates POLOC relation for the entire graph.
+ * POLOC is PO between events accessing the same location.
+ */
 Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation poloc;
 
 	for (auto eventLabel : labels(g)) {
+		// Initial label must be a memory access label
+		// i.e. it must be accessing some addres
 		auto initialMemoryLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
 		if (!initialMemoryLabel) continue;
 
+		// Iterate over next labels untill a label
+		// accessing the same address is found
 		bool finalLabelFound = false;
 		auto nextLabel = eventLabel;
 		while (!finalLabelFound) {
 			nextLabel = g.getNextLabel(nextLabel);
+
 			// Reached the end of the thread, terminate
 			if (!nextLabel) break;
 
+			// Final label must be a memory access label
 			auto nextMemoryLabel = dynamic_cast<MemAccessLabel *>(nextLabel);
-			// is not a memory access label, continue
 			if (!nextMemoryLabel) continue;
 			
-			// Initial and next labels access the same address, return
+			// Initial and next labels access the same address, final label found
 			if (initialMemoryLabel->getAddr() == nextMemoryLabel->getAddr()) {
 				finalLabelFound = true;
 				break;
 			}
 		}
 
+		// Add edge only if appropriate final label was found
 		if (finalLabelFound) {
 			tryAddEdge(initialMemoryLabel->getPos(), nextLabel->getPos(), &poloc);
 		}
@@ -139,7 +169,7 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 }
 
 /**
- * Calculates push relation which is union of spush
+ * Calculates PUSH relation which is union of spush
  * and volint, where initial and final events 
  * are writes to the same memory location.
  */
@@ -154,9 +184,13 @@ Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
 		auto initialWriteLab = g.getWriteLabel(elem);
 		if (!initialWriteLab) continue;
 
+		// Get codomain of spushUvolint for elem
 		const auto adjElems = getAdj(elem, spushUvolint);
 		if (0 < adjElems.size()) {
+
+			// Iterate over all events in the codomain of spushUvolint for elem
 			for (const auto adjElem : adjElems) {
+
 				// Final label must be a write
 				auto finalWriteLab = g.getWriteLabel(adjElem);
 				if (!finalWriteLab) continue;
@@ -202,6 +236,8 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 			}
 		}
 
+		// All events are orderd according to po U rf
+		// Accept this topological order
 		topologicalSort = sort;
         return true;
     });
@@ -222,6 +258,9 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 	return pushto;
 }
 
+/**
+ * Returns the union of all rf edges in the graph
+ */
 Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 	auto &g = getGraph();
 	Calculator::GlobalRelation rf;
@@ -237,6 +276,8 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 }
 
 Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
+	auto rf = calcRfRelation();
+
 	auto ra = calcRaRelation();
 	auto svo = calcSvoRelation();
 
@@ -245,10 +286,11 @@ Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
 
 	auto pushto = calcPushtoRelation();
 
+	// Calculate pushto; (spush U volint)
 	auto spushUvolint = merge({spush, volint});
 	auto pushtoComp = calcComp(pushto, spushUvolint);
 
-	auto vvo = merge({calcRfRelation(), svo, ra, spush, volint, pushtoComp});
+	auto vvo = merge({rf, svo, ra, spush, volint, pushtoComp});
 	return vvo;
 }
 
@@ -381,12 +423,18 @@ Calculator::GlobalRelation CojomCalculator::calcCorr() {
 		if (initWriteLab->isNotAtomic()) continue;
 
 		// Iterate over all reads that read from the inital write
-		for (auto initReadLab : initWriteLab->getReadersList()) {
+		for (auto initReadElem : initWriteLab->getReadersList()) {
 			// Fina all next read labels in PO
-			auto finalReadLab = dynamic_cast<ReadLabel*>(g.getNextLabel(initReadLab));
+			auto initReadLab = dynamic_cast<ReadLabel*>(g.getNextLabel(initReadElem));
+			if (!initReadLab) continue;
+
+			// Get next event in PO that is a read to create RF^-1 edge
+			auto finalReadElem = g.getNextLabel(initReadElem);
+			if (!finalReadElem) continue;
+			auto finalReadLab = dynamic_cast<ReadLabel*>(finalReadElem);
 			if (!finalReadLab) continue;
 
-			// Get writes where RF points from
+			// Get write where RF points from
 			auto finalWriteEvent = finalReadLab->getRf();
 			auto finalWriteLab = g.getWriteLabel(finalWriteEvent);
 			if (!finalWriteLab) {
@@ -470,7 +518,7 @@ std::vector<Event> CojomCalculator::getAdj(Event event, Calculator::GlobalRelati
 }
 
 /**
- * Retrieves n previous event labels starting from and including the given event,
+ * Retrieves n previous event labels starting from and including the given event
  * and returns them in a vector. The initial event is in the front of the vector,
  * followed by n-1 previous events. If there are less than n prev events,
  * an empty vector is returned.
