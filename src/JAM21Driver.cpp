@@ -27,6 +27,8 @@
 #include "CojomCalculator.hpp"
 #include "PersistencyChecker.hpp"
 
+#include "PSCCalculator.hpp"
+
 JAM21Driver::JAM21Driver(std::shared_ptr<const Config> conf, std::unique_ptr<llvm::Module> mod,
 		       std::unique_ptr<ModuleInfo> MI)
 	: GenMCDriver(conf, std::move(mod), std::move(MI))

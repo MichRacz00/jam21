@@ -392,11 +392,15 @@ Calculator::CalculationResult PSCCalculator::doCalc()
 	auto &coRelation = g.getPerLocRelation(ExecutionGraph::RelationId::co);
 
 	hbRelation.transClosure();
-	if (!hbRelation.isIrreflexive())
+	if (!hbRelation.isIrreflexive()) {
 		return Calculator::CalculationResult(false, false);
+	}
 	calcPscRelation();
-	if (!pscRelation.isIrreflexive())
+	if (!pscRelation.isIrreflexive()) {
+		llvm::outs() << getGraph() << "\n";
+		llvm::outs() << pscRelation << "\n";
 		return Calculator::CalculationResult(false, false);
+	}
 
 	auto result = addPscConstraints();
 	if (!result.cons)

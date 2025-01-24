@@ -60,7 +60,7 @@ private:
     Calculator::GlobalRelation calcComp(Calculator::GlobalRelation relA, Calculator::GlobalRelation relB);
 
     void calcTransC(Calculator::GlobalRelation *relation);
-    std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation);
+    std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation, int size);
 
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);

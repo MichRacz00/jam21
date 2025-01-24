@@ -23,7 +23,28 @@ Calculator::CalculationResult CojomCalculator::doCalc()
 	calcTransC(&cojom);
 	bool isAcyclic = cojom.isIrreflexive();
 
-	llvm::outs() << cojom << "\n";
+	if (true) {
+		llvm::outs() << " ----- RF " << calcRfRelation() << "\n";
+		llvm::outs() << " ----- RA " << calcRaRelation() << "\n";
+		llvm::outs() << " ----- SVO " << calcSvoRelation() << "\n";
+
+		llvm::outs() << " ===== SPUSH " << calcSpushRelation() << "\n";
+		llvm::outs() << " ===== VOLINT " << calcVolintRelation() << "\n";
+
+		llvm::outs() << " ..... PUSH " << calcPushRelation() << "\n";
+		llvm::outs() << " ..... PUSHTO " << calcPushtoRelation() << "\n";
+
+		llvm::outs() << " +++++ VVO " << calcVvoRelation() << "\n";
+		llvm::outs() << " +++++ VO " << calcVoRelation() << "\n";
+
+		auto vo = calcVoRelation();
+		llvm::outs() << "COWW " << calcCoww(vo) << "\n";
+		llvm::outs() << "COWR " << calcCowr(vo) << "\n";
+		llvm::outs() << "CORW " << calcCorw(vo) << "\n";
+		llvm::outs() << "CORR " << calcCorr() << "\n";
+
+		llvm::outs() << " ***** COJOM " << calcCojom() << "\n";
+	}
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
@@ -101,6 +122,8 @@ Calculator::GlobalRelation CojomCalculator::calcSpushRelation() {
 		tryAddEdge(events[0]->getPos(), events[2]->getPos(), &spush);
 	}
 
+	
+
 	return spush;
 }
 
@@ -177,6 +200,18 @@ Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
 	auto &g = getGraph();
 	auto spushUvolint = merge({calcSpushRelation(), calcVolintRelation()});
 
+	Calculator::GlobalRelation relation;
+
+	for (auto elem : spushUvolint) {
+		if (getAdj(elem, spushUvolint).size() > 0) {
+			tryAddNode(elem, &relation);
+		}
+	}
+
+	return relation;
+
+	//TODO remove the rest
+
 	Calculator::GlobalRelation push;
 
 	for (const auto elem : spushUvolint.getElems()) {
@@ -197,7 +232,7 @@ Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
 
 				// If both accesses are to the same location and
 				// are not an identity, add an edge in push
-				if (initialWriteLab->getAddr() == finalWriteLab->getAddr()
+				if (initialWriteLab->getAddr() <= finalWriteLab->getAddr()
 					&& initialWriteLab != finalWriteLab) {
 					tryAddEdge(elem, adjElem, &push);
 				}
@@ -230,8 +265,9 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 
 			// Topological order (linearisation) violates po U rf view
 			// Namely, if porf vector clocks are out of order
-			if (!(lab->getPorfView() <= nextLab->getPorfView())) {
+			if (nextLab->getPorfView() <= lab->getPorfView()) {
 				// Reject this topological order
+				llvm::outs() << lab->getPorfView() << " => " << nextLab->getPorfView() << "\n";
 				return false;
 			}
 		}
@@ -295,11 +331,11 @@ Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
 }
 
 Calculator::GlobalRelation CojomCalculator::calcVoRelation() {
-	auto vvoTrans = calcVvoRelation();
+	auto vvo = calcVvoRelation();
 	auto poloc = calcPolocRelation();
-	calcTransC(&vvoTrans);
+	calcTransC(&vvo);
 
-	Calculator::GlobalRelation vo = merge({vvoTrans, poloc});
+	Calculator::GlobalRelation vo = merge({vvo, poloc});
 	return vo;
 }
 
@@ -553,7 +589,7 @@ void CojomCalculator::calcTransC(Calculator::GlobalRelation *relation) {
 
 	for (auto event : relation->getElems()) {
 		auto lab = g.getEventLabel(event);
-		auto labels = calcTransC(lab, relation);
+		auto labels = calcTransC(lab, relation, relation->size());
 
 		for (auto &finalLabel : labels) {
 			tryAddEdge(lab->getPos(), finalLabel->getPos(), relation);
@@ -561,14 +597,15 @@ void CojomCalculator::calcTransC(Calculator::GlobalRelation *relation) {
 	}
 }
 
-std::vector<std::unique_ptr<EventLabel>> CojomCalculator::calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation) {
+std::vector<std::unique_ptr<EventLabel>> CojomCalculator::calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation, int size) {
 	auto &g = getGraph();
 	std::vector<std::unique_ptr<EventLabel>> labels;
 	
 	auto adj = getAdj(lab->getPos(), *relation);
 
 	// This label in the graph does not have any outgoing edges
-	if (adj.size() == 0) {
+	// or we have reached the max recursion depth
+	if (adj.size() == 0 || size == 0) {
 		return labels;
 	}
 
@@ -579,7 +616,7 @@ std::vector<std::unique_ptr<EventLabel>> CojomCalculator::calcTransC(const Event
 
 		if (adjLab == lab) return labels;
 
-		auto labTrans = calcTransC(adjLab, relation);
+		auto labTrans = calcTransC(adjLab, relation, size - 1);
 		std::move(labTrans.begin(), labTrans.end(), std::back_inserter(labels));
 	}
 
