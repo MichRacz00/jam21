@@ -37,9 +37,10 @@ private:
 
     // Other helper relations
     Calculator::GlobalRelation calcPolocRelation();
-    Calculator::GlobalRelation calcPushRelation();
+    Calculator::GlobalRelation calcPushDomain();
     Calculator::GlobalRelation calcPushtoRelation();
     Calculator::GlobalRelation calcRfRelation();
+    Calculator::GlobalRelation calcMoRelation();
 
     // Calculations of visibility orders
     Calculator::GlobalRelation calcVvoRelation();

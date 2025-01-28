@@ -25,26 +25,39 @@ Calculator::CalculationResult CojomCalculator::doCalc()
 
 	if (true) {
 		llvm::outs() << " ----- RF " << calcRfRelation() << "\n";
+	}
+
+	if (false) {
 		llvm::outs() << " ----- RA " << calcRaRelation() << "\n";
 		llvm::outs() << " ----- SVO " << calcSvoRelation() << "\n";
+	}
 
+	if (true) {
 		llvm::outs() << " ===== SPUSH " << calcSpushRelation() << "\n";
 		llvm::outs() << " ===== VOLINT " << calcVolintRelation() << "\n";
 
-		llvm::outs() << " ..... PUSH " << calcPushRelation() << "\n";
+		llvm::outs() << " ..... PUSH domain " << calcPushDomain() << "\n";
 		llvm::outs() << " ..... PUSHTO " << calcPushtoRelation() << "\n";
+	}
 
+	if (false) {
 		llvm::outs() << " +++++ VVO " << calcVvoRelation() << "\n";
 		llvm::outs() << " +++++ VO " << calcVoRelation() << "\n";
+	}
 
+	if (false) {
 		auto vo = calcVoRelation();
 		llvm::outs() << "COWW " << calcCoww(vo) << "\n";
 		llvm::outs() << "COWR " << calcCowr(vo) << "\n";
 		llvm::outs() << "CORW " << calcCorw(vo) << "\n";
 		llvm::outs() << "CORR " << calcCorr() << "\n";
-
-		llvm::outs() << " ***** COJOM " << calcCojom() << "\n";
 	}
+
+	if (true) {
+		llvm::outs() << "COJOM " << calcCojom() << "\n";
+	}
+
+	llvm::outs() << calcMoRelation();
 
 	return Calculator::CalculationResult(false, isAcyclic);
 }
@@ -192,51 +205,17 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 }
 
 /**
- * Calculates PUSH relation which is union of spush
- * and volint, where initial and final events 
- * are writes to the same memory location.
+ * Calculates domain of the union of spush and volint relations.
  */
-Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
+Calculator::GlobalRelation CojomCalculator::calcPushDomain() {
 	auto &g = getGraph();
 	auto spushUvolint = merge({calcSpushRelation(), calcVolintRelation()});
 
-	Calculator::GlobalRelation relation;
+	Calculator::GlobalRelation push;
 
 	for (auto elem : spushUvolint) {
 		if (getAdj(elem, spushUvolint).size() > 0) {
-			tryAddNode(elem, &relation);
-		}
-	}
-
-	return relation;
-
-	//TODO remove the rest
-
-	Calculator::GlobalRelation push;
-
-	for (const auto elem : spushUvolint.getElems()) {
-		// Initial label must be a write
-		auto initialWriteLab = g.getWriteLabel(elem);
-		if (!initialWriteLab) continue;
-
-		// Get codomain of spushUvolint for elem
-		const auto adjElems = getAdj(elem, spushUvolint);
-		if (0 < adjElems.size()) {
-
-			// Iterate over all events in the codomain of spushUvolint for elem
-			for (const auto adjElem : adjElems) {
-
-				// Final label must be a write
-				auto finalWriteLab = g.getWriteLabel(adjElem);
-				if (!finalWriteLab) continue;
-
-				// If both accesses are to the same location and
-				// are not an identity, add an edge in push
-				if (initialWriteLab->getAddr() <= finalWriteLab->getAddr()
-					&& initialWriteLab != finalWriteLab) {
-					tryAddEdge(elem, adjElem, &push);
-				}
-			}
+			tryAddNode(elem, &push);
 		}
 	}
 
@@ -250,12 +229,43 @@ Calculator::GlobalRelation CojomCalculator::calcPushRelation() {
  * sort. All sorts are checked for violations of po U rf relation.
  */
 Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
-	std::vector<Event> topologicalSort;
-	const auto push = calcPushRelation();
+	std::vector<std::vector<Event>> topologicalSort;
+	const auto push = calcPushDomain();
 
 	push.allTopoSort([this, &topologicalSort](auto& sort) {
 		auto &g = getGraph();
 
+		// Iterate over all events in an ordering to check
+		// if they adhere to porf view
+		for (auto elem : sort) {
+			auto lab = g.getEventLabel(elem);
+
+			for (auto nextElem : sort) {
+				if (elem == nextElem) continue;
+				auto nextLab = g.getEventLabel(nextElem);
+
+				bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
+							&& !(nextLab->getPorfView() <= lab->getPorfView());
+				if (concurent) continue;
+
+				if (nextLab->getPorfView() <= lab->getPorfView()) {
+					return false;
+				}
+
+
+				llvm::outs() << "Accepted toposort: ";
+				for (auto s : sort) {
+					llvm::outs() << s;
+				}
+				llvm::outs() << "\n";
+
+				topologicalSort.push_back(sort);
+			}
+		}
+
+		return true;
+
+		/**
 		for (int i = 1; i < sort.size(); ++i) {
 			auto event = sort[i - 1];
 			auto nextEvent = sort[i];
@@ -263,11 +273,18 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 			auto lab = g.getEventLabel(event);
 			auto nextLab = g.getEventLabel(nextEvent);
 
+			bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
+							&& !(nextLab->getPorfView() <= lab->getPorfView());
+
+			if (concurent) {
+				llvm::outs() << "Concurrent: ";
+				llvm::outs() << lab->getPos() << " " << lab->getPorfView() << " " << nextLab->getPos() << " " << nextLab->getPorfView() << "\n";
+			}
+
 			// Topological order (linearisation) violates po U rf view
 			// Namely, if porf vector clocks are out of order
 			if (nextLab->getPorfView() <= lab->getPorfView()) {
 				// Reject this topological order
-				llvm::outs() << lab->getPorfView() << " => " << nextLab->getPorfView() << "\n";
 				return false;
 			}
 		}
@@ -276,20 +293,25 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 		// Accept this topological order
 		topologicalSort = sort;
         return true;
+		*/
     });
 
+	Calculator::GlobalRelation pushto;
+	
 	/**
 	 * Create relation object, add total order edges
 	 * reflecting event order from the list
 	 * topologicalSort [A, B, C]
 	 * relation: (A) -> (B), (B) -> (C)
 	 */
+	/**
 	Calculator::GlobalRelation pushto(topologicalSort);
 	for (int i = 1; i < pushto.size(); i ++) {
 		const auto elemA = pushto.getElems()[i - 1];
 		const auto elemB = pushto.getElems()[i];
 		tryAddEdge(elemA, elemB, &pushto);
 	}
+	*/
 
 	return pushto;
 }
@@ -309,6 +331,46 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 	}
 
 	return rf;
+}
+
+
+/**
+ * Calculates MO relation between all events in the graph.
+ * 
+ * Finds all accesses to the same memory address, orders
+ * them according to po rf view.
+ */
+Calculator::GlobalRelation CojomCalculator::calcMoRelation() {
+	auto &g = getGraph();
+	std::unordered_map<SAddr, std::vector<WriteLabel*>> writeLabels;
+	GlobalRelation mo;
+
+    for (const auto &lab : labels(g)) {
+		auto writeLab = dynamic_cast<WriteLabel*>(lab);
+        if (writeLab) {
+            // If it is a write label, group it by address
+            writeLabels[writeLab->getAddr()].push_back(writeLab);
+			llvm::outs() << writeLab->getPos() << " " << writeLab->getPorfView() << "\n";
+        }
+    }
+
+	// Sort each vector according to po U rf view
+	// then add to mo relation
+	for (auto &pair : writeLabels) {
+		auto &labelVec = pair.second;
+		
+		std::sort(labelVec.begin(), labelVec.end(), [](WriteLabel* a, WriteLabel* b) {
+        	return !(b->getPorfView() <= a->getPorfView());
+    	});
+		
+		// Add all sorted nodes to the relation
+		for (int i = 1; i < labelVec.size(); i++) {
+			llvm::outs() << (*labelVec[i - 1]).getPos() << " " << (*labelVec[i - 1]).getHbView() << " " << (*labelVec[i]).getPos() <<(*labelVec[i]).getHbView() << "\n";
+    		tryAddEdge((*labelVec[i - 1]).getPos(), (*labelVec[i]).getPos(), &mo);
+		}
+    }
+
+	return mo;
 }
 
 Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
@@ -605,7 +667,7 @@ std::vector<std::unique_ptr<EventLabel>> CojomCalculator::calcTransC(const Event
 
 	// This label in the graph does not have any outgoing edges
 	// or we have reached the max recursion depth
-	if (adj.size() == 0 || size == 0) {
+	if (adj.size() == 0 || size < 0) {
 		return labels;
 	}
 
