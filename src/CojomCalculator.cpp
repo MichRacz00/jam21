@@ -229,13 +229,11 @@ Calculator::GlobalRelation CojomCalculator::calcPushDomain() {
 	return push;
 }
 
-//TODO add write -> final write relation
 /**
  * Calculates all possible linearisations (trace orders)
  * in the domain of push relation (volint U spush).
  * 
- * Total order must not violate po U rf and writes to final write
- * orders.
+ * Total order must not violate po U rf.
  */
 std::vector<Calculator::GlobalRelation> CojomCalculator::calcPushtoRelation() {
 	std::vector<GlobalRelation> pushtos;
@@ -305,46 +303,6 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 	}
 
 	return rf;
-}
-
-
-/**
- * Calculates MO relation between all events in the graph.
- * 
- * Finds all accesses to the same memory address, orders
- * them according to po rf view.
- */
-Calculator::GlobalRelation CojomCalculator::calcMoRelation() {
-	auto &g = getGraph();
-	std::unordered_map<SAddr, std::vector<WriteLabel*>> writeLabels;
-	GlobalRelation mo;
-
-    for (const auto &lab : labels(g)) {
-		auto writeLab = dynamic_cast<WriteLabel*>(lab);
-        if (writeLab) {
-            // If it is a write label, group it by address
-            writeLabels[writeLab->getAddr()].push_back(writeLab);
-			llvm::outs() << writeLab->getPos() << " " << writeLab->getPorfView() << "\n";
-        }
-    }
-
-	// Sort each vector according to po U rf view
-	// then add to mo relation
-	for (auto &pair : writeLabels) {
-		auto &labelVec = pair.second;
-		
-		std::sort(labelVec.begin(), labelVec.end(), [](WriteLabel* a, WriteLabel* b) {
-        	return !(b->getPorfView() <= a->getPorfView());
-    	});
-		
-		// Add all sorted nodes to the relation
-		for (int i = 1; i < labelVec.size(); i++) {
-			llvm::outs() << (*labelVec[i - 1]).getPos() << " " << (*labelVec[i - 1]).getHbView() << " " << (*labelVec[i]).getPos() <<(*labelVec[i]).getHbView() << "\n";
-    		tryAddEdge((*labelVec[i - 1]).getPos(), (*labelVec[i]).getPos(), &mo);
-		}
-    }
-
-	return mo;
 }
 
 Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
