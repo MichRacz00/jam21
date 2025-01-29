@@ -397,8 +397,6 @@ Calculator::CalculationResult PSCCalculator::doCalc()
 	}
 	calcPscRelation();
 	if (!pscRelation.isIrreflexive()) {
-		llvm::outs() << getGraph() << "\n";
-		llvm::outs() << pscRelation << "\n";
 		return Calculator::CalculationResult(false, false);
 	}
 
