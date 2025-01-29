@@ -25,6 +25,10 @@ public:
 	}
 
 private:
+    // Calculates cojom for all possible linearisations,
+    // checks if all of them are acyclic
+    bool isCojomAcyclic();
+
     // ------ Functions to calculate relations ------
     // Relations that capture rel/acq memory events
     Calculator::GlobalRelation calcRaRelation();
@@ -37,21 +41,14 @@ private:
 
     // Other helper relations
     Calculator::GlobalRelation calcPolocRelation();
-    Calculator::GlobalRelation calcPushDomain();
-    std::vector<Calculator::GlobalRelation> calcPushtoRelation();
     Calculator::GlobalRelation calcRfRelation();
-    Calculator::GlobalRelation calcMoRelation();
-
-    // Calculations of visibility orders
-    Calculator::GlobalRelation calcVvoRelation();
-    Calculator::GlobalRelation calcVoRelation();
 
     // Helper relations for co-jom
     Calculator::GlobalRelation calcCoww(GlobalRelation vo);
     Calculator::GlobalRelation calcCowr(GlobalRelation vo);
     Calculator::GlobalRelation calcCorw(GlobalRelation vo);
     Calculator::GlobalRelation calcCorr();
-    Calculator::GlobalRelation calcCojom();
+    Calculator::GlobalRelation calcCojom(GlobalRelation vo);
 
     // ------ Helper functions on relations ------
     std::vector<std::unique_ptr<EventLabel>> getPrevMany(EventLabel &lab, int n);
@@ -62,6 +59,9 @@ private:
 
     void calcTransC(Calculator::GlobalRelation *relation);
     std::vector<std::unique_ptr<EventLabel>> calcTransC(const EventLabel *lab, Calculator::GlobalRelation *relation, int size);
+
+    GlobalRelation domain(GlobalRelation rel);
+    std::vector<Calculator::GlobalRelation> calcAllLinearisations(Calculator::GlobalRelation rel);
 
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);

@@ -12,60 +12,7 @@ void CojomCalculator::initCalc()
 
 Calculator::CalculationResult CojomCalculator::doCalc()
 {
-	auto &g = getGraph();
-	auto &cojomGraph = g.getGlobalRelation(ExecutionGraph::RelationId::cojom);
-	
-	auto cojom = calcCojom();
-
-	// Calculate acyclicity by taking transitive closure
-	// and checking irreflexivity on it
-	cojomGraph = cojom;
-	calcTransC(&cojom);
-	bool isAcyclic = cojom.isIrreflexive();
-
-	if (true) {
-		llvm::outs() << " ----- RF " << calcRfRelation() << "\n";
-	}
-
-	if (false) {
-		llvm::outs() << " ----- RA " << calcRaRelation() << "\n";
-		llvm::outs() << " ----- SVO " << calcSvoRelation() << "\n";
-	}
-
-	if (true) {
-		llvm::outs() << " ===== SPUSH " << calcSpushRelation() << "\n";
-		llvm::outs() << " ===== VOLINT " << calcVolintRelation() << "\n";
-
-		llvm::outs() << " ..... PUSH domain " << calcPushDomain() << "\n";
-	}
-
-	if (true) {
-		llvm::outs() << "Linearisations of the domain of push:\n";
-		const auto pushtos = calcPushtoRelation();
-		for (const auto pushto : pushtos) {
-			llvm::outs() << pushto << "\n";
-		}
-	}
-
-	if (false) {
-		llvm::outs() << " +++++ VVO " << calcVvoRelation() << "\n";
-		llvm::outs() << " +++++ VO " << calcVoRelation() << "\n";
-	}
-
-	if (false) {
-		auto vo = calcVoRelation();
-		llvm::outs() << "COWW " << calcCoww(vo) << "\n";
-		llvm::outs() << "COWR " << calcCowr(vo) << "\n";
-		llvm::outs() << "CORW " << calcCorw(vo) << "\n";
-		llvm::outs() << "CORR " << calcCorr() << "\n";
-	}
-
-	if (true) {
-		llvm::outs() << "COJOM " << calcCojom() << "\n";
-	}
-
-	llvm::outs() << calcMoRelation();
-
+	bool isAcyclic = isCojomAcyclic();
 	return Calculator::CalculationResult(false, isAcyclic);
 }
 
@@ -73,6 +20,45 @@ void CojomCalculator::removeAfter(const VectorClock &preds)
 {
 	/* We do not track anything specific */
 	return;
+}
+
+bool CojomCalculator::isCojomAcyclic() {
+	auto rf = calcRfRelation();
+	auto ra = calcRaRelation();
+	auto svo = calcSvoRelation();
+
+	auto spush = calcSpushRelation();
+	auto volint = calcVolintRelation();
+	auto push = merge({spush, volint});
+
+	// Intra-thread order
+	auto intra = merge({rf, ra, svo, push});
+
+	// Calculate acyclicity for each linearisation of push
+	auto pushtos = calcAllLinearisations(push);
+	for (auto pushto : pushtos) {
+		// Calculate VVO relation
+		auto pushtoCompPush = calcComp(pushto, push);
+		auto vvo = merge({intra, pushtoCompPush});
+
+		// Calculate VO and cojom relations
+		calcTransC(&vvo);
+		auto vo = merge({vvo, calcPolocRelation()});
+		auto cojom = calcCojom(vo);
+
+		llvm::outs() << cojom;
+
+		// Calculate acyclicity of cojom by taking transitive closure
+		// and checking for irreflexivity
+		calcTransC(&cojom);
+		if (!vo.isIrreflexive()) {
+			// A cycle has been found
+			return false;
+		}
+	}
+
+	// No cycles in all possible linearisations
+	return true;
 }
 
 /**
@@ -212,34 +198,32 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 }
 
 /**
- * Calculates domain of the union of spush and volint relations.
+ * Returns a relation with no edges that only contains events
+ * from the domain of the given relation.
  */
-Calculator::GlobalRelation CojomCalculator::calcPushDomain() {
-	auto &g = getGraph();
-	auto spushUvolint = merge({calcSpushRelation(), calcVolintRelation()});
+Calculator::GlobalRelation CojomCalculator::domain(Calculator::GlobalRelation rel) {
+	Calculator::GlobalRelation domain;
 
-	Calculator::GlobalRelation push;
-
-	for (auto elem : spushUvolint) {
-		if (getAdj(elem, spushUvolint).size() > 0) {
-			tryAddNode(elem, &push);
+	for (auto elem : rel) {
+		if (getAdj(elem, rel).size() > 0) {
+			tryAddNode(elem, &domain);
 		}
 	}
 
-	return push;
+	return domain;
 }
 
 /**
  * Calculates all possible linearisations (trace orders)
- * in the domain of push relation (volint U spush).
+ * in the domain of a given relation.
  * 
  * Total order must not violate po U rf.
  */
-std::vector<Calculator::GlobalRelation> CojomCalculator::calcPushtoRelation() {
+std::vector<Calculator::GlobalRelation> CojomCalculator::calcAllLinearisations(GlobalRelation rel) {
 	std::vector<GlobalRelation> pushtos;
-	const auto push = calcPushDomain();
+	const auto dom = domain(rel);
 
-	push.allTopoSort([this, &pushtos](auto& sort) {
+	dom.allTopoSort([this, &pushtos](auto& sort) {
 		auto &g = getGraph();
 
 		// Iterate over all events in an ordering to check
@@ -305,36 +289,10 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
 	return rf;
 }
 
-Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
-	auto rf = calcRfRelation();
-
-	auto ra = calcRaRelation();
-	auto svo = calcSvoRelation();
-
-	auto spush = calcSpushRelation();
-	auto volint = calcVolintRelation();
-
-	auto pushto = calcPushtoRelation();
-
-	// Calculate pushto; (spush U volint)
-	auto spushUvolint = merge({spush, volint});
-	//auto pushtoComp = calcComp(pushto, spushUvolint);
-
-	auto vvo = merge({rf, svo, ra, spush, volint});
-	return vvo;
-}
-
-Calculator::GlobalRelation CojomCalculator::calcVoRelation() {
-	auto vvo = calcVvoRelation();
-	auto poloc = calcPolocRelation();
-	calcTransC(&vvo);
-
-	Calculator::GlobalRelation vo = merge({vvo, poloc});
-	return vo;
-}
-
-Calculator::GlobalRelation CojomCalculator::calcCojom() {
-	auto vo = calcVoRelation();
+/**
+ * Given VO calculates cojom relation
+ */
+Calculator::GlobalRelation CojomCalculator::calcCojom(Calculator::GlobalRelation vo) {
 	Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	return cojom;
 }
