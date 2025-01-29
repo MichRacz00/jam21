@@ -237,33 +237,36 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 
 		// Iterate over all events in an ordering to check
 		// if they adhere to porf view
-		for (auto elem : sort) {
-			auto lab = g.getEventLabel(elem);
+		for (int i = 0; i < sort.size(); i++) {
+			auto lab = g.getEventLabel(sort[i]);
 
-			for (auto nextElem : sort) {
-				if (elem == nextElem) continue;
-				auto nextLab = g.getEventLabel(nextElem);
+			for (int j = i + 1; j < sort.size(); j ++) {
+				auto nextLab = g.getEventLabel(sort[j]);
 
+				// If two events are concurrent, the ordering in the linearisation
+				// between those two events can be arbitrary
 				bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
 							&& !(nextLab->getPorfView() <= lab->getPorfView());
 				if (concurent) continue;
 
+				// If the next event has vector clock lower than the current event,
+				// those events have not been ordered consecutively in the po U rf view.
+				// This linearisation must be rejected
 				if (nextLab->getPorfView() <= lab->getPorfView()) {
 					return false;
 				}
-
-
-				llvm::outs() << "Accepted toposort: ";
-				for (auto s : sort) {
-					llvm::outs() << s;
-				}
-				llvm::outs() << "\n";
-
-				topologicalSort.push_back(sort);
 			}
 		}
 
-		return true;
+		llvm::outs() << "Accepted toposort: ";
+				for (auto s : sort) {
+					llvm::outs() << s;
+				}
+			llvm::outs() << "\n";
+
+		topologicalSort.push_back(sort);
+
+		return false;
 
 		/**
 		for (int i = 1; i < sort.size(); ++i) {
