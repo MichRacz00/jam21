@@ -37,7 +37,14 @@ Calculator::CalculationResult CojomCalculator::doCalc()
 		llvm::outs() << " ===== VOLINT " << calcVolintRelation() << "\n";
 
 		llvm::outs() << " ..... PUSH domain " << calcPushDomain() << "\n";
-		llvm::outs() << " ..... PUSHTO " << calcPushtoRelation() << "\n";
+	}
+
+	if (true) {
+		llvm::outs() << "Linearisations of the domain of push:\n";
+		const auto pushtos = calcPushtoRelation();
+		for (const auto pushto : pushtos) {
+			llvm::outs() << pushto << "\n";
+		}
 	}
 
 	if (false) {
@@ -222,17 +229,19 @@ Calculator::GlobalRelation CojomCalculator::calcPushDomain() {
 	return push;
 }
 
+//TODO add write -> final write relation
 /**
- * Calculates pushto relation which is a trace order (total order)
- * in the push relation (volint U spush). Total order must not
- * violate po U rf. Total order is calculated using topological
- * sort. All sorts are checked for violations of po U rf relation.
+ * Calculates all possible linearisations (trace orders)
+ * in the domain of push relation (volint U spush).
+ * 
+ * Total order must not violate po U rf and writes to final write
+ * orders.
  */
-Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
-	std::vector<std::vector<Event>> topologicalSort;
+std::vector<Calculator::GlobalRelation> CojomCalculator::calcPushtoRelation() {
+	std::vector<GlobalRelation> pushtos;
 	const auto push = calcPushDomain();
 
-	push.allTopoSort([this, &topologicalSort](auto& sort) {
+	push.allTopoSort([this, &pushtos](auto& sort) {
 		auto &g = getGraph();
 
 		// Iterate over all events in an ordering to check
@@ -258,65 +267,27 @@ Calculator::GlobalRelation CojomCalculator::calcPushtoRelation() {
 			}
 		}
 
-		llvm::outs() << "Accepted toposort: ";
-				for (auto s : sort) {
-					llvm::outs() << s;
-				}
-			llvm::outs() << "\n";
-
-		topologicalSort.push_back(sort);
-
-		return false;
-
 		/**
-		for (int i = 1; i < sort.size(); ++i) {
-			auto event = sort[i - 1];
-			auto nextEvent = sort[i];
-
-			auto lab = g.getEventLabel(event);
-			auto nextLab = g.getEventLabel(nextEvent);
-
-			bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
-							&& !(nextLab->getPorfView() <= lab->getPorfView());
-
-			if (concurent) {
-				llvm::outs() << "Concurrent: ";
-				llvm::outs() << lab->getPos() << " " << lab->getPorfView() << " " << nextLab->getPos() << " " << nextLab->getPorfView() << "\n";
-			}
-
-			// Topological order (linearisation) violates po U rf view
-			// Namely, if porf vector clocks are out of order
-			if (nextLab->getPorfView() <= lab->getPorfView()) {
-				// Reject this topological order
-				return false;
-			}
+	 	* Create relation object, add total order edges
+	 	* reflecting event order from the topo sort vecotr, ex:
+	 	* 
+	 	* topologicalSort [A, B, C]
+	 	* relation: (A) -> (B), (B) -> (C)
+	 	*/
+		Calculator::GlobalRelation pushto(sort);
+		for (int i = 1; i < sort.size(); i ++) {
+			const auto elemA = pushto.getElems()[i - 1];
+			const auto elemB = pushto.getElems()[i];
+			tryAddEdge(elemA, elemB, &pushto);
 		}
 
-		// All events are orderd according to po U rf
-		// Accept this topological order
-		topologicalSort = sort;
-        return true;
-		*/
+		pushtos.push_back(pushto);
+
+		// Allways return false to keep finding all possible topological sorts
+		return false;
     });
 
-	Calculator::GlobalRelation pushto;
-	
-	/**
-	 * Create relation object, add total order edges
-	 * reflecting event order from the list
-	 * topologicalSort [A, B, C]
-	 * relation: (A) -> (B), (B) -> (C)
-	 */
-	/**
-	Calculator::GlobalRelation pushto(topologicalSort);
-	for (int i = 1; i < pushto.size(); i ++) {
-		const auto elemA = pushto.getElems()[i - 1];
-		const auto elemB = pushto.getElems()[i];
-		tryAddEdge(elemA, elemB, &pushto);
-	}
-	*/
-
-	return pushto;
+	return pushtos;
 }
 
 /**
@@ -389,9 +360,9 @@ Calculator::GlobalRelation CojomCalculator::calcVvoRelation() {
 
 	// Calculate pushto; (spush U volint)
 	auto spushUvolint = merge({spush, volint});
-	auto pushtoComp = calcComp(pushto, spushUvolint);
+	//auto pushtoComp = calcComp(pushto, spushUvolint);
 
-	auto vvo = merge({rf, svo, ra, spush, volint, pushtoComp});
+	auto vvo = merge({rf, svo, ra, spush, volint});
 	return vvo;
 }
 

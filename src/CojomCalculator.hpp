@@ -38,7 +38,7 @@ private:
     // Other helper relations
     Calculator::GlobalRelation calcPolocRelation();
     Calculator::GlobalRelation calcPushDomain();
-    Calculator::GlobalRelation calcPushtoRelation();
+    std::vector<Calculator::GlobalRelation> calcPushtoRelation();
     Calculator::GlobalRelation calcRfRelation();
     Calculator::GlobalRelation calcMoRelation();
 
