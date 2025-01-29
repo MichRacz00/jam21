@@ -46,12 +46,12 @@ bool CojomCalculator::isCojomAcyclic() {
 		auto vo = merge({vvo, calcPolocRelation()});
 		auto cojom = calcCojom(vo);
 
-		llvm::outs() << cojom;
+		//llvm::outs() << cojom;
 
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity
 		calcTransC(&cojom);
-		if (!vo.isIrreflexive()) {
+		if (!cojom.isIrreflexive()) {
 			// A cycle has been found
 			return false;
 		}
