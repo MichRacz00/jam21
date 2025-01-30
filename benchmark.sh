@@ -12,10 +12,11 @@ RESULTS_FILE="benchmark_results.csv"
 find "$ROOT_DIR" -type d -name "variants" | while read -r VARIANTS_DIR; do
     for FILE in "$VARIANTS_DIR"/*; do
         if [[ -f "$FILE" ]]; then
-            OUTPUT=$("$BINARY" "$FILE" 2>&1)
+            OUTPUT=$("$BINARY" "$FILE" --jam21 --check-consistency-point=exec --check-consistency-type=full 2>&1)
 
             # Extract values
             EXEC_COUNT=$(echo "$OUTPUT" | grep -oE "Number of complete executions explored: [0-9]+" | awk '{print $6}')
+            BLOCKED_COUNT=$(echo "$OUTPUT" | grep -oE "Number of blocked executions seen: [0-9]+" | awk '{print $6}')
             TIME_TAKEN=$(echo "$OUTPUT" | grep -oE "Total wall-clock time: ([0-9.]+)s" | awk '{print $4}')
 
             # Extract test name and variant
@@ -25,7 +26,7 @@ find "$ROOT_DIR" -type d -name "variants" | while read -r VARIANTS_DIR; do
 
             # If values are found, append to CSV
             if [[ -n "$EXEC_COUNT" && -n "$TIME_TAKEN" ]]; then
-                echo "$MAIN_CATEGORY,$TEST_NAME,$VARIANT_NAME,$EXEC_COUNT,$TIME_TAKEN" >> "$RESULTS_FILE"
+                echo "$MAIN_CATEGORY,$TEST_NAME,$VARIANT_NAME,$EXEC_COUNT,$BLOCKED_COUNT,$TIME_TAKEN" >> "$RESULTS_FILE"
             else
                 echo "$MAIN_CATEGORY,$TEST_NAME,$VARIANT_NAME,failed,failed" >> "$RESULTS_FILE"
             fi

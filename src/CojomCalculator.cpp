@@ -48,7 +48,10 @@ bool CojomCalculator::isCojomAcyclic() {
 
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity
-		calcTransC(&cojom);
+
+		// TODO: verify if using transClosure() is correct
+		//calcTransC(&cojom);
+		cojom.transClosure();
 		if (!cojom.isIrreflexive()) {
 			// A cycle has been found
 			return false;
