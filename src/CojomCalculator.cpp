@@ -37,6 +37,7 @@ bool CojomCalculator::isCojomAcyclic() {
 	// Calculate acyclicity for each linearisation of push
 	auto pushtos = calcAllLinearisations(push);
 	for (auto pushto : pushtos) {
+
 		// Calculate VVO relation
 		auto pushtoCompPush = calcComp(pushto, push);
 		auto vvo = merge({intra, pushtoCompPush});
@@ -48,9 +49,6 @@ bool CojomCalculator::isCojomAcyclic() {
 
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity
-
-		// TODO: verify if using transClosure() is correct
-		//calcTransC(&cojom);
 		cojom.transClosure();
 		if (!cojom.isIrreflexive()) {
 			// A cycle has been found
@@ -215,10 +213,26 @@ Calculator::GlobalRelation CojomCalculator::domain(Calculator::GlobalRelation re
 }
 
 /**
+ * Given memory location, returns all writes to that location
+ * in MO order. MO order is calculated in the execution graph.
+ */
+std::vector<Event> CojomCalculator::getMoPerLoc(SAddr addr) {
+	auto &g = getGraph();
+	auto cc = g.getCoherenceCalculator();
+	std::vector<Event> mo;
+	
+	for (auto it = (*cc).store_begin(addr); it != (*cc).store_end(addr); ++it) {
+    	mo.push_back(*it);
+	}
+
+	return mo;
+}
+
+/**
  * Calculates all possible linearisations (trace orders)
  * in the domain of a given relation.
  * 
- * Total order must not violate po U rf.
+ * Total order must not violate po U rf U mo.
  */
 std::vector<Calculator::GlobalRelation> CojomCalculator::calcAllLinearisations(GlobalRelation rel) {
 	std::vector<GlobalRelation> pushtos;

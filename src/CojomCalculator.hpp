@@ -63,6 +63,8 @@ private:
     GlobalRelation domain(GlobalRelation rel);
     std::vector<Calculator::GlobalRelation> calcAllLinearisations(Calculator::GlobalRelation rel);
 
+    std::vector<Event> getMoPerLoc(SAddr addr);
+
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
 

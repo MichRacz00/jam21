@@ -2,7 +2,7 @@
 
 # Define variables
 BINARY="./src/genmc"
-ROOT_DIR="./tests/correct/data-structures"
+ROOT_DIR="./tests/correct/synthetic"
 RESULTS_FILE="benchmark_results.csv"
 
 # Clear log file
@@ -12,7 +12,8 @@ RESULTS_FILE="benchmark_results.csv"
 find "$ROOT_DIR" -type d -name "variants" | while read -r VARIANTS_DIR; do
     for FILE in "$VARIANTS_DIR"/*; do
         if [[ -f "$FILE" ]]; then
-            OUTPUT=$("$BINARY" "$FILE" --jam21 --check-consistency-point=exec --check-consistency-type=full 2>&1)
+            echo "Processing $FILE"
+            OUTPUT=$("$BINARY" "$FILE" --check-consistency-point=exec --check-consistency-type=full 2>&1)
 
             # Extract values
             EXEC_COUNT=$(echo "$OUTPUT" | grep -oE "Number of complete executions explored: [0-9]+" | awk '{print $6}')
