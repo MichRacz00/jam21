@@ -1,7 +1,1 @@
-synthetic,fib_bench,fib_bench0.c,525630,,4.85s
-synthetic,fib_bench,fib_bench0r.c,525630,,14.51s
-synthetic,fib_bench,fib_bench1.c,525630,,10.97s
-synthetic,casw,casw0.c,failed,failed
-synthetic,binc,binc0.c,failed,failed
-synthetic,barrier-transc,trans.c,1,,0.04s
-synthetic,psc-wb-why-fxp,psc-wb0.c,0,10,0.03s
+synthetic-bounded,fib_bench,fib_bench0.c,525630,,2159.62s
