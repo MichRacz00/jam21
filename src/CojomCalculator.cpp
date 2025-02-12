@@ -161,6 +161,17 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 	Calculator::GlobalRelation poloc;
 
 	for (auto eventLabel : labels(g)) {
+		auto memoryEventLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
+		if (!memoryEventLabel && !eventLabel->getPos().isInitializer()) continue;
+
+		auto temp = findSameLocWriteAccesses(eventLabel->getPos(), eventLabel->getPos());
+		for (auto t : temp) {
+			llvm::outs() << eventLabel->getPos() << "->" << t << "\n";
+		}
+	}
+
+	for (auto eventLabel : labels(g)) {
+
 		// Initial label must be a memory access label
 		// i.e. it must be accessing some addres
 		auto initialMemoryLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
@@ -193,7 +204,61 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 		}
 	}
 
+	llvm::outs() << poloc<<"\n";
+
 	return poloc;
+}
+
+/**
+ * Retruns a list of next events of startingEvent in po that are writes to the location
+ * of the sameAddrEvent. If a new thread is spawned, it is also searched for such events.
+ * 
+ * Initializer event (0, 0) is considered as a memory access to all locations.
+ */
+std::vector<Event> CojomCalculator::findSameLocWriteAccesses(Event sameAddrEvent, Event startingEvent) {
+	std::vector<Event> finalEventLabels;
+	auto &g = getGraph();
+
+	auto startingEventMemLabel = dynamic_cast<MemAccessLabel *>(g.getEventLabel(startingEvent));
+	EventLabel *nextLabel = g.getEventLabel(startingEvent);
+
+	do {
+		// Encountered a thread create label
+		auto threadCreateLabel = dynamic_cast<ThreadCreateLabel *>(nextLabel);
+		if (threadCreateLabel) {
+			// Get first event in the new thread
+			auto firstThredEvent = g.getFirstThreadEvent(threadCreateLabel->getChildId());
+
+			// Encountered a thread create event, check new thread for writes as well
+			auto finalEventLabelsNewThread = findSameLocWriteAccesses(sameAddrEvent, firstThredEvent);
+
+			// Add final labels from new thread to current final event list
+			finalEventLabels.insert(finalEventLabels.end(), finalEventLabelsNewThread.begin(), finalEventLabelsNewThread.end());
+		}
+
+		// Get next event label in the graph
+		nextLabel = g.getNextLabel(nextLabel);
+
+		// Next label must be a memory access label
+		auto nextMemoryLabel = dynamic_cast<MemAccessLabel *>(nextLabel);
+		if (!nextMemoryLabel) continue;
+
+		if (sameAddrEvent.isInitializer()) {
+			// If we are checing for poloc of initializer allways add the next mem access
+			finalEventLabels.push_back(nextLabel->getPos());
+			break;
+		} else {
+			// If memory address is the same, add poloc ege
+			if (startingEventMemLabel->getAddr() == nextMemoryLabel->getAddr()) {
+				finalEventLabels.push_back(nextLabel->getPos());
+				break;
+			}
+		}
+
+	// No more events in this thread, terminate
+	} while (nextLabel);
+
+	return finalEventLabels;
 }
 
 /**

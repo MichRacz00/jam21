@@ -64,6 +64,7 @@ private:
     std::vector<Calculator::GlobalRelation> calcAllLinearisations(Calculator::GlobalRelation rel);
 
     std::vector<Event> getMoPerLoc(SAddr addr);
+    std::vector<Event> findSameLocWriteAccesses(Event sameAddrEvent, Event startingEvent);
 
     void tryAddEdge(Event a, Event b, Calculator::GlobalRelation *relation);
     bool tryAddNode(Event event, Calculator::GlobalRelation *relation);
