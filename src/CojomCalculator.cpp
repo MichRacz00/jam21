@@ -185,7 +185,9 @@ std::vector<Event> CojomCalculator::findSameLocWriteAccesses(Event sameAddrEvent
 	std::vector<Event> finalEventLabels;
 	auto &g = getGraph();
 
-	auto startingEventMemLabel = dynamic_cast<MemAccessLabel *>(g.getEventLabel(startingEvent));
+	//auto startingEventMemLabel = dynamic_cast<MemAccessLabel *>(g.getEventLabel(startingEvent));
+	auto sameAddrMemLabel = dynamic_cast<MemAccessLabel *>(g.getEventLabel(sameAddrEvent));
+	auto startingEventMemLabel = g.getEventLabel(startingEvent);
 	EventLabel *nextLabel = g.getEventLabel(startingEvent);
 
 	do {
@@ -215,7 +217,7 @@ std::vector<Event> CojomCalculator::findSameLocWriteAccesses(Event sameAddrEvent
 			break;
 		} else {
 			// If memory address is the same, add poloc ege
-			if (startingEventMemLabel->getAddr() == nextMemoryLabel->getAddr()) {
+			if (sameAddrMemLabel->getAddr() == nextMemoryLabel->getAddr()) {
 				finalEventLabels.push_back(nextLabel->getPos());
 				break;
 			}
@@ -513,7 +515,7 @@ Calculator::GlobalRelation CojomCalculator::calcCorr() {
 			}
 		}
 	}
-	
+
 	return corr;
 }
 
