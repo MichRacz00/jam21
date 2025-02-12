@@ -161,51 +161,16 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 	Calculator::GlobalRelation poloc;
 
 	for (auto eventLabel : labels(g)) {
+		// We only consider memory access labels or the initializer label
 		auto memoryEventLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
 		if (!memoryEventLabel && !eventLabel->getPos().isInitializer()) continue;
 
-		auto temp = findSameLocWriteAccesses(eventLabel->getPos(), eventLabel->getPos());
-		for (auto t : temp) {
-			llvm::outs() << eventLabel->getPos() << "->" << t << "\n";
+		auto finalAccesses = findSameLocWriteAccesses(eventLabel->getPos(), eventLabel->getPos());
+		for (auto finalAccess : finalAccesses) {
+			tryAddEdge(eventLabel->getPos(), finalAccess, &poloc);
 		}
 	}
-
-	for (auto eventLabel : labels(g)) {
-
-		// Initial label must be a memory access label
-		// i.e. it must be accessing some addres
-		auto initialMemoryLabel = dynamic_cast<MemAccessLabel *>(eventLabel);
-		if (!initialMemoryLabel) continue;
-
-		// Iterate over next labels untill a label
-		// accessing the same address is found
-		bool finalLabelFound = false;
-		auto nextLabel = eventLabel;
-		while (!finalLabelFound) {
-			nextLabel = g.getNextLabel(nextLabel);
-
-			// Reached the end of the thread, terminate
-			if (!nextLabel) break;
-
-			// Final label must be a memory access label
-			auto nextMemoryLabel = dynamic_cast<MemAccessLabel *>(nextLabel);
-			if (!nextMemoryLabel) continue;
-			
-			// Initial and next labels access the same address, final label found
-			if (initialMemoryLabel->getAddr() == nextMemoryLabel->getAddr()) {
-				finalLabelFound = true;
-				break;
-			}
-		}
-
-		// Add edge only if appropriate final label was found
-		if (finalLabelFound) {
-			tryAddEdge(initialMemoryLabel->getPos(), nextLabel->getPos(), &poloc);
-		}
-	}
-
-	llvm::outs() << poloc<<"\n";
-
+	
 	return poloc;
 }
 
