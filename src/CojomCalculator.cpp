@@ -54,9 +54,7 @@ bool CojomCalculator::isCojomAcyclic() {
 			// A cycle has been found
 			return false;
 		}
-
-		llvm::outs() << vo;
-		llvm::outs() << cojom;
+		
 	}
 
 	// No cycles in all possible linearisations
@@ -341,6 +339,7 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
  * Given VO calculates cojom relation
  */
 Calculator::GlobalRelation CojomCalculator::calcCojom(Calculator::GlobalRelation vo) {
+	//Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	return cojom;
 }
@@ -355,18 +354,24 @@ Calculator::GlobalRelation CojomCalculator::calcCoww(GlobalRelation vo) {
 	for (auto elem : vo.getElems()) {
 		// First label must be a write
 		auto intialLab = g.getWriteLabel(elem);
-		if (!intialLab) continue;
+		if (!intialLab && !elem.isInitializer()) continue;
 
 		for (auto finalElem : getAdj(elem, vo)) {
 			// Final label must be a write
 			auto finalLab = g.getWriteLabel(finalElem);
 			if (!finalLab) continue;
 
-			// If writes to the same location and are not an identity
-			if (intialLab->getAddr() == finalLab->getAddr()
-				&& intialLab != finalLab) {
-					tryAddEdge(elem, finalElem, &coww);
-				}
+			// Exclude identity
+			if (intialLab == finalLab) continue;
+
+			if (elem.isInitializer()) {
+				// If the first write is an initializer treat it as write access
+				// to all memory locations
+				tryAddEdge(elem, finalElem, &coww);
+			} else if (intialLab->getAddr() == finalLab->getAddr()) {
+				// If writes to the same location
+				tryAddEdge(elem, finalElem, &coww);
+			}
 		}
 	}
 
@@ -383,7 +388,7 @@ Calculator::GlobalRelation CojomCalculator::calcCowr(GlobalRelation vo) {
 	for (auto elem : vo.getElems()) {
 		// First label must be a write
 		auto initialLab = g.getWriteLabel(elem);
-		if (!initialLab) continue;
+		if (!initialLab && !elem.isInitializer()) continue;
 
 		for (auto finalElem : getAdj(elem, vo)) {
 			// Final label of VO must be a read to create RF^-1
@@ -392,19 +397,25 @@ Calculator::GlobalRelation CojomCalculator::calcCowr(GlobalRelation vo) {
 
 			// Get write associated by RF
 			auto finalWriteElem = middleReadLab->getRf();
+
+			// Exclude identity
+			if (elem == finalWriteElem) continue;
+
 			auto finalWriteLab = g.getWriteLabel(finalWriteElem);
 			if (!finalWriteLab) {
-				// Should never be triggered becaouse read must
-				// allways have a corresponding write
-				// Better than segfault
+				// The final event is not a write
+				// This should not be triggered unless
+				// we have reached the initalizer event
+				tryAddEdge(elem, finalWriteElem, &cowr);
 				continue;
 			}
 
-			// If writes to the same location and are not an identity
-			if (initialLab->getAddr() == finalWriteLab->getAddr()
-				&& elem != finalWriteElem) {
-					tryAddEdge(elem, finalWriteElem, &cowr);
-				}
+			if (elem.isInitializer()) {
+				tryAddEdge(elem, finalWriteElem, &cowr);
+			} else if (initialLab->getAddr() == finalWriteLab->getAddr()) {
+				// If writes to the same location and are not an identity
+				tryAddEdge(elem, finalWriteElem, &cowr);
+			}
 		}
 	}
 
@@ -421,7 +432,7 @@ Calculator::GlobalRelation CojomCalculator::calcCorw(GlobalRelation vo) {
 	for (auto elem : vo.getElems()) {
 		// First label must be a write
 		auto initialLab = g.getWriteLabel(elem);
-		if (!initialLab) continue;
+		if (!initialLab && !elem.isInitializer()) continue;
 
 		for (auto finalElem : getAdj(elem, vo)) {
 			// Get next label in PO
@@ -434,10 +445,16 @@ Calculator::GlobalRelation CojomCalculator::calcCorw(GlobalRelation vo) {
 			auto finalWriteLab = dynamic_cast<WriteLabel*>(finalLab);
 			if (!finalWriteLab) continue;
 
-			// If writes to the same location and are not an identity
-			if (initialLab->getAddr() == finalWriteLab->getAddr()
-				&& initialLab != finalWriteLab) {
-					tryAddEdge(elem, finalLab->getPos(), &corw);
+			// Exclude identity
+			if (initialLab == finalLab) continue;
+
+			if (elem.isInitializer()) {
+				// If the first write is an initializer treat it as write access
+				// to all memory locations
+				tryAddEdge(elem, finalElem, &corw);
+			} else if (initialLab->getAddr() == finalWriteLab->getAddr()) {
+				// If writes to the same location
+				tryAddEdge(elem, finalElem, &corw);
 			}
 		}
 	}
@@ -453,43 +470,50 @@ Calculator::GlobalRelation CojomCalculator::calcCorr() {
 	Calculator::GlobalRelation corr;
 
 	for (auto lab : labels(g)) {
-		// First labels must be a write that is opaque, rel/acq or volotile
-		auto initWriteLab = dynamic_cast<WriteLabel*>(lab);
-		if (!initWriteLab) continue;
-		if (initWriteLab->isNotAtomic()) continue;
+		// Check if label is read
+		auto initReadLab = dynamic_cast<ReadLabel*>(lab);
+		if (!initReadLab) continue;
 
-		// Iterate over all reads that read from the inital write
-		for (auto initReadElem : initWriteLab->getReadersList()) {
-			// Fina all next read labels in PO
-			auto initReadLab = dynamic_cast<ReadLabel*>(g.getNextLabel(initReadElem));
-			if (!initReadLab) continue;
+		// Get write label from rf
+		// Initial write can also be an INIT label in which case
+		// we assume it is a write to all locations
+		// If this is a write label, it must be opaque or stronger
+		auto initWrite = initReadLab->getRf();
+		auto initWriteLab = g.getWriteLabel(initWrite);
+		if (!initWriteLab && !initWrite.isInitializer()) continue;
+		if (initWriteLab) {
+			if (!initWriteLab->isNotAtomic()) continue;
+		}
+		
+		// Get next event in PO, it must be a read by rf^-1
+		auto finalRead = g.getNextLabel(initReadLab);
+		if (!finalRead) continue;
+		auto finalReadLab = g.getReadLabel(finalRead->getPos());
+		if (!finalReadLab) continue;
 
-			// Get next event in PO that is a read to create RF^-1 edge
-			auto finalReadElem = g.getNextLabel(initReadElem);
-			if (!finalReadElem) continue;
-			auto finalReadLab = dynamic_cast<ReadLabel*>(finalReadElem);
-			if (!finalReadLab) continue;
+		// Get write by rf^-1
+		// If it is a write label, it must be opaque or stronger
+		auto finalWrite = finalReadLab->getRf();
+		auto finalWriteLab = g.getWriteLabel(finalWrite);
+		if (!finalWriteLab && !finalWrite.isInitializer()) continue;
+		if (finalWriteLab) {
+			if (!finalWriteLab->isNotAtomic()) continue;
+		}
 
-			// Get write where RF points from
-			auto finalWriteEvent = finalReadLab->getRf();
-			auto finalWriteLab = g.getWriteLabel(finalWriteEvent);
-			if (!finalWriteLab) {
-				// Should never trigger
-				continue;
+		// remove identity
+		if (initWrite == finalWrite) continue;
+
+		if (initWrite.isInitializer() || finalWrite.isInitializer()) {
+			// Either of the writes is an initializer, then we allways add corr edge
+			tryAddEdge(initWrite, finalWrite, &corr);
+		} else {
+			// They are both not initializers
+			if (initWriteLab->getAddr() == finalWriteLab->getAddr()) {
+				tryAddEdge(initWrite, finalWrite, &corr);
 			}
-
-			// Final write must be opaque, rel/acq or volotile
-			if (finalWriteLab->isNotAtomic()) continue;
-
-			// Only add to relation if both writes access the same location
-			// and are not the same write
-			if (initWriteLab->getAddr() == finalWriteLab->getAddr()
-				&& initWriteLab != finalWriteLab) {
-					tryAddEdge(lab->getPos(), finalWriteEvent, &corr);
-				}
 		}
 	}
-
+	
 	return corr;
 }
 
