@@ -54,6 +54,9 @@ bool CojomCalculator::isCojomAcyclic() {
 			// A cycle has been found
 			return false;
 		}
+
+		llvm::outs() << vo;
+		llvm::outs() << cojom;
 	}
 
 	// No cycles in all possible linearisations
@@ -170,7 +173,7 @@ Calculator::GlobalRelation CojomCalculator::calcPolocRelation() {
 			tryAddEdge(eventLabel->getPos(), finalAccess, &poloc);
 		}
 	}
-	
+
 	return poloc;
 }
 
