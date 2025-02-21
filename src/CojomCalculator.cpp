@@ -54,7 +54,6 @@ bool CojomCalculator::isCojomAcyclic() {
 			// A cycle has been found
 			return false;
 		}
-		
 	}
 
 	// No cycles in all possible linearisations
@@ -341,7 +340,6 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
  * Given VO calculates cojom relation
  */
 Calculator::GlobalRelation CojomCalculator::calcCojom(Calculator::GlobalRelation vo) {
-	//Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	return cojom;
 }
