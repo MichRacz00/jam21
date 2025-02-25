@@ -30,7 +30,7 @@ void *thread_3(void *unused)
 {
 	int y_local = atomic_load_explicit(&y, memory_order_relaxed);
 	__VERIFIER_assume(y_local == 1);
-	atomic_thread_fence(memory_order_seq_cst); // lwsync fixed to hwsync
+	atomic_thread_fence(memory_order_relaxed); // lwsync fixed to hwsync
 	atomic_store_explicit(&x, 1, memory_order_relaxed);
 	return NULL;
 }
@@ -51,6 +51,10 @@ void *thread_4(void *unused)
 int main()
 {
 	pthread_t t1, t2, t3, t4;
+
+	// To break [init] as sc access
+	atomic_store_explicit(&x, 0, memory_order_relaxed);
+	atomic_store_explicit(&y, 0, memory_order_relaxed);
 
 	if (pthread_create(&t1, NULL, thread_1, NULL))
 		abort();
