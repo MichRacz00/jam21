@@ -50,14 +50,14 @@ bool CojomCalculator::isCojomAcyclic() {
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity
 		cojom.transClosure();
-		if (!cojom.isIrreflexive()) {
-			// A cycle has been found
-			return false;
+		if (cojom.isIrreflexive()) {
+			// Found linearisation that allows for consistent execution
+			return true;
 		}
 	}
 
-	// No cycles in all possible linearisations
-	return true;
+	// No thread interleavings producing correct execution have been found
+	return false;
 }
 
 /**
