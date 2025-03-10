@@ -35,10 +35,47 @@ JAM21VCDriver::JAM21VCDriver(std::shared_ptr<const Config> conf, std::unique_ptr
 {
 	auto &g = getGraph();
 	
-	g.addCalculator(std::make_unique<CojomCalculator>(g),
-			ExecutionGraph::RelationId::cojom, false);
-	
 	return;
+}
+
+View JAM21VCDriver::calcHbView(EventLabel *lab) {
+	View hb;
+	auto &g = getGraph();
+
+	auto labPrev1 = g.getPreviousLabel(lab);
+	if (!labPrev1) return hb;
+
+	if (lab->isSC() && labPrev1->isSC()) {
+		llvm::outs() << "volint between " << labPrev1->getPos() << " and " << lab->getPos() << "\n";
+	}
+
+	auto writeLab = llvm::dyn_cast<MemAccessLabel>(lab);
+	if (writeLab) {
+		auto addr = writeLab->getAddr();
+		auto index = getSAddrIndex(addr);
+		llvm::outs() << index << "\n";
+	}
+
+	return hb;
+}
+
+/**
+ * Given a raw memory location returns a unique integer value for that
+ * memory location. Automatically assigns integer value for a new
+ * memory location.
+ */
+int JAM21VCDriver::getSAddrIndex(SAddr addr) {
+	uintptr_t raw_address = addr.get();
+    auto it = saddr_to_index.find(raw_address);
+
+	if (it == saddr_to_index.end()) {
+		// Insert address if not found
+		int new_index = saddr_to_index.size();
+        saddr_to_index[raw_address] = new_index;
+        return new_index;
+	}
+
+    return it->second;
 }
 
 /* Calculates a minimal hb vector clock based on po for a given label */
@@ -208,6 +245,9 @@ void JAM21VCDriver::calcJoinViews(ThreadJoinLabel *lab)
 void JAM21VCDriver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* deps ignored */
 {
 	const auto &g = getGraph();
+
+	//llvm::outs() << g;
+	calcHbView(lab);
 
 	switch (lab->getKind()) {
 	case EventLabel::EL_Read:
