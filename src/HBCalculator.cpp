@@ -18,12 +18,16 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	std::vector<Event> allEvents;
 	for (auto const lab : labels(g)) allEvents.push_back(lab->getPos());
 	Calculator::GlobalRelation hb(allEvents);
+	Calculator::GlobalRelation mo(allEvents);
 
 	for (auto &t : g.getThreadList()) {
 		addIntraThreadHB(t, hb);
 	}
 
-	llvm::outs() << hb;
+	calcMO(hb, mo);
+
+	llvm::outs() << hb << "\n";
+	llvm::outs() << mo << "\n----------\n";
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -81,6 +85,44 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &eventLabels, Calcula
 			}
 		}
     }
+}
+
+void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
+	hb.transClosure();
+	auto &g = getGraph();
+
+	for (auto const e : hb.getElems()) {
+		for (auto const adj : hb.getElems()) {
+			if (!hb(e, adj)) continue;
+
+			auto const lab = g.getEventLabel(e);
+
+			auto const labWrite = dynamic_cast<WriteLabel *>(lab);
+			auto const labRead = dynamic_cast<ReadLabel *>(lab);
+
+			auto const adjWrite = g.getWriteLabel(adj);
+			auto const adjRead = g.getReadLabel(adj);
+
+			llvm::outs() << e << " -> " << adj << "\n";
+
+			if (labWrite && adjWrite) {
+				if (labWrite->getAddr() == adjWrite->getAddr()) mo.addEdge(e, adj);
+
+			} else if (labWrite && adjRead) {
+				auto rf = adjRead->getRf();
+				if (e != rf && labWrite->getAddr() == adjRead->getAddr()) mo.addEdge(e, adj);
+
+			} else if (labRead && adjWrite) {
+				auto rf = labRead->getRf();
+				if (g.getWriteLabel(rf)->getAddr() == adjWrite->getAddr()) mo.addEdge(rf, adj);
+
+			} else if (labRead && adjRead) {
+				auto rfLab = labRead->getRf();
+				auto rfAdj = adjRead->getRf();
+				if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) mo.addEdge(rfLab, rfAdj);
+			}
+		}
+	}
 }
 
 bool HBCalculator::isFence(EventLabel *lab) {
