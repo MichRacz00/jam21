@@ -37,11 +37,6 @@ public:
 	void initConsCalculation() override;
 
 private:
-	View calcHbView(EventLabel *lab);
-
-	std::map<uintptr_t, int> saddr_to_index;
-	int getSAddrIndex(SAddr addr);
-
 	View calcBasicHbView(Event e) const;
 	View calcBasicPorfView(Event e) const;
 	void calcWriteMsgView(WriteLabel *lab);
