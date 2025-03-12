@@ -24,7 +24,9 @@ public:
 		return std::make_unique<HBCalculator>(g);
 	}
 
-//private:
+private:
+
+	void addIntraThreadHB(ExecutionGraph::Thread &labels);
 
 };
 
