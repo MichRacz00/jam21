@@ -40,10 +40,23 @@ void HBCalculator::removeAfter(const VectorClock &preds)
 
 void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb) {
 	std::deque<EventLabel*> lastLabels;
+	auto &g = getGraph();
 
     for (auto &lab : eventLabels) {
 		lastLabels.push_back(lab.get());
 		if (lastLabels.size() > 5) lastLabels.pop_front();
+
+		auto labThreadStart = dynamic_cast<ThreadStartLabel*>(lab.get());
+		if (labThreadStart) {
+			auto labCreate = labThreadStart->getParentCreate();
+			hb.addEdge(labCreate, labThreadStart->getPos());
+		}
+
+		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
+		if (labRead) {
+			auto labRf = labRead->getRf();
+			hb.addEdge(labRf, labRead->getPos());
+		}
 
 		if (lastLabels.size() >= 2) {
 			auto last = lastLabels.back();
@@ -103,23 +116,33 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 			auto const adjWrite = g.getWriteLabel(adj);
 			auto const adjRead = g.getReadLabel(adj);
 
-			llvm::outs() << e << " -> " << adj << "\n";
-
 			if (labWrite && adjWrite) {
-				if (labWrite->getAddr() == adjWrite->getAddr()) mo.addEdge(e, adj);
+				if (labWrite->getAddr() == adjWrite->getAddr()) {
+					mo.addEdge(e, adj);
+					//hb.addEdge(e, adj);
+				}
 
 			} else if (labWrite && adjRead) {
 				auto rf = adjRead->getRf();
-				if (e != rf && labWrite->getAddr() == adjRead->getAddr()) mo.addEdge(e, adj);
+				if (e != rf && labWrite->getAddr() == adjRead->getAddr()) {
+					mo.addEdge(e, rf);
+					//hb.addEdge(e, rf);
+				}
 
 			} else if (labRead && adjWrite) {
 				auto rf = labRead->getRf();
-				if (g.getWriteLabel(rf)->getAddr() == adjWrite->getAddr()) mo.addEdge(rf, adj);
+				if (g.getWriteLabel(rf)->getAddr() == adjWrite->getAddr()) {
+					mo.addEdge(rf, adj);
+					//hb.addEdge(rf, adj);
+				}
 
 			} else if (labRead && adjRead) {
 				auto rfLab = labRead->getRf();
 				auto rfAdj = adjRead->getRf();
-				if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) mo.addEdge(rfLab, rfAdj);
+				if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) {
+					mo.addEdge(rfLab, rfAdj);
+					//hb.addEdge(rfLab, rfAdj);
+				}
 			}
 		}
 	}
