@@ -175,10 +175,15 @@ void HBCalculator::addImplicitHB(Calculator::GlobalRelation &hb) {
 
 		auto read_addr = labRead->getAddr();
 
-		auto labRf = labRead->getRf();
+		auto rf = labRead->getRf();
 
-		for (auto it = hb.adj_begin(labRf); it != hb.adj_end(labRf); ++it) {
-			//llvm::outs() << labRead->getPos() << "->" << hb.getElems()[*it] << "\n";
+		for (auto const adj : hb.getElems()) {
+			//llvm::outs() << rf << adj << "\n";
+			if (!hb(rf, adj)) continue;
+			auto const labWrite = g.getWriteLabel(adj);
+			if (!labWrite) continue;
+			if (labRead->getAddr() != labWrite->getAddr()) continue;
+			hb.addEdge(labRead->getPos(), adj);
 		}
 	}
 }
