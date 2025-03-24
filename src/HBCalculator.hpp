@@ -27,7 +27,9 @@ public:
 private:
 
 	void addIntraThreadHB(ExecutionGraph::Thread &labels, Calculator::GlobalRelation &hb);
+	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
 	void calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
+	void addImplicitHB(Calculator::GlobalRelation &hb);
 
 	bool isFence(EventLabel *lab);
 

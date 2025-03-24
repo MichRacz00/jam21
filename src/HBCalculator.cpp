@@ -3,6 +3,7 @@
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
 #include <deque>
+#include <map>
 
 void HBCalculator::initCalc()
 {
@@ -23,6 +24,9 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	for (auto &t : g.getThreadList()) {
 		addIntraThreadHB(t, hb);
 	}
+	hb.transClosure();
+
+	addImplicitHB(hb);
 
 	calcMO(hb, mo);
 
@@ -40,11 +44,26 @@ void HBCalculator::removeAfter(const VectorClock &preds)
 
 void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb) {
 	std::deque<EventLabel*> lastLabels;
+	std::map<SAddr, Event> previousAccess;
 	auto &g = getGraph();
 
     for (auto &lab : eventLabels) {
 		lastLabels.push_back(lab.get());
 		if (lastLabels.size() > 5) lastLabels.pop_front();
+
+		auto labMemAccess = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (labMemAccess) {
+			if (previousAccess.find(labMemAccess->getAddr()) == previousAccess.end()) {
+				auto firstThreadEvent = eventLabels.front().get();
+				hb.addEdge(firstThreadEvent->getPos(), labMemAccess->getPos());
+				previousAccess[labMemAccess->getAddr()] = labMemAccess->getPos();
+			} else {
+				auto prevAccessLab = previousAccess[labMemAccess->getAddr()];
+				hb.addEdge(prevAccessLab, labMemAccess->getPos());
+				previousAccess[labMemAccess->getAddr()] = labMemAccess->getPos();
+			}
+			
+		}	
 
 		auto labThreadStart = dynamic_cast<ThreadStartLabel*>(lab.get());
 		if (labThreadStart) {
@@ -101,7 +120,6 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &eventLabels, Calcula
 }
 
 void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
-	hb.transClosure();
 	auto &g = getGraph();
 
 	for (auto const e : hb.getElems()) {
@@ -144,6 +162,23 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 					//hb.addEdge(rfLab, rfAdj);
 				}
 			}
+		}
+	}
+}
+
+void HBCalculator::addImplicitHB(Calculator::GlobalRelation &hb) {
+	auto &g = getGraph();
+
+	for (auto lab : labels(g)) {
+		auto labRead = dynamic_cast<ReadLabel *> (lab);
+		if (!labRead) continue;
+
+		auto read_addr = labRead->getAddr();
+
+		auto labRf = labRead->getRf();
+
+		for (auto it = hb.adj_begin(labRf); it != hb.adj_end(labRf); ++it) {
+			//llvm::outs() << labRead->getPos() << "->" << hb.getElems()[*it] << "\n";
 		}
 	}
 }
