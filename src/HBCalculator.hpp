@@ -31,6 +31,8 @@ private:
 	void calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 	void addImplicitHB(Calculator::GlobalRelation &hb);
 	Calculator::GlobalRelation mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
+	void addHBfromInit(Calculator::GlobalRelation &hb);
+	void addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 
 	bool isFence(EventLabel *lab);
 

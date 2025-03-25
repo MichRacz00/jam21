@@ -25,13 +25,20 @@ Calculator::CalculationResult HBCalculator::doCalc()
 		addIntraThreadHB(t, hb);
 	}
 	hb.transClosure();
-
-	addImplicitHB(hb);
+	
+	addHBfromInit(hb);
+	//addImplicitHB(hb);
 
 	calcMO(hb, mo);
 
+	addHBfromMO(hb, mo);
+
+	llvm::outs() << hb << "\n";
+	llvm::outs() << mo << "\n";
+	llvm::outs() << " ============================================================= \n";
+
 	auto hbUmo = mergeHBandMO(hb, mo);
-	
+
 	hbUmo.transClosure();
 
 	return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
@@ -63,13 +70,14 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &eventLabels, Calcula
 				hb.addEdge(prevAccessLab, labMemAccess->getPos());
 				previousAccess[labMemAccess->getAddr()] = labMemAccess->getPos();
 			}
-			
 		}	
 
 		auto labThreadStart = dynamic_cast<ThreadStartLabel*>(lab.get());
 		if (labThreadStart) {
 			auto labCreate = labThreadStart->getParentCreate();
-			hb.addEdge(labCreate, labThreadStart->getPos());
+			if (labCreate != labThreadStart->getPos()) {
+				hb.addEdge(labCreate, labThreadStart->getPos());
+			}
 		}
 
 		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
@@ -138,29 +146,32 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 			if (labWrite && adjWrite) {
 				if (labWrite->getAddr() == adjWrite->getAddr()) {
 					mo.addEdge(e, adj);
-					//hb.addEdge(e, adj);
 				}
 
 			} else if (labWrite && adjRead) {
 				auto rf = adjRead->getRf();
 				if (e != rf && labWrite->getAddr() == adjRead->getAddr()) {
 					mo.addEdge(e, rf);
-					//hb.addEdge(e, rf);
 				}
 
 			} else if (labRead && adjWrite) {
 				auto rf = labRead->getRf();
-				if (g.getWriteLabel(rf)->getAddr() == adjWrite->getAddr()) {
+				if (rf.isInitializer()) {
 					mo.addEdge(rf, adj);
-					//hb.addEdge(rf, adj);
+				} else if (g.getWriteLabel(rf)->getAddr() == adjWrite->getAddr()) {
+					mo.addEdge(rf, adj);
 				}
 
 			} else if (labRead && adjRead) {
 				auto rfLab = labRead->getRf();
 				auto rfAdj = adjRead->getRf();
-				if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) {
-					mo.addEdge(rfLab, rfAdj);
-					//hb.addEdge(rfLab, rfAdj);
+
+				if (rfLab != rfAdj) {
+					if (rfLab.isInitializer() || rfAdj.isInitializer()) {
+						mo.addEdge(rfLab, rfAdj);	
+					} else if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) {
+						mo.addEdge(rfLab, rfAdj);
+					}
 				}
 			}
 		}
@@ -186,6 +197,55 @@ void HBCalculator::addImplicitHB(Calculator::GlobalRelation &hb) {
 			if (labRead->getAddr() != labWrite->getAddr()) continue;
 			hb.addEdge(labRead->getPos(), adj);
 		}
+	}
+}
+
+void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
+	auto &g = getGraph();
+
+	for (auto const e : mo.getElems()) {
+		for (auto const adj : mo.getElems()) {
+			if (!mo(e, adj)) continue;
+			
+			auto const lab = g.getEventLabel(e);
+
+			auto const labWrite = dynamic_cast<WriteLabel *>(lab);
+			auto const adjWrite = g.getWriteLabel(adj);
+
+			// WW coh
+			hb.addEdge(e, adj);
+
+			if (labWrite && adjWrite) {
+				// RR coh
+				for (auto labR : labWrite->getReadersList()) {
+					for (auto adjR : adjWrite->getReadersList()) {
+						hb.addEdge(labR, adjR);
+					}
+				}
+			}
+
+			if (labWrite) {
+				// WR coh
+				for (auto r : labWrite->getReadersList()) {
+					hb.addEdge(r, adj);
+					llvm::outs() << "	" << r << " " << adj << "\n";
+				}
+			}
+
+			if (adjWrite) {
+				// RW coh
+				for (auto r : adjWrite->getReadersList()) {
+					hb.addEdge(e, r);
+				}
+			}
+		}
+	}
+}
+
+void HBCalculator::addHBfromInit(Calculator::GlobalRelation &hb) {
+	for (auto const e : hb.getElems()) {
+		if (e.isInitializer()) continue;
+		hb.addEdge(e.getInitializer(), e);
 	}
 }
 
