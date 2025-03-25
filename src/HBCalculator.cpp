@@ -30,10 +30,11 @@ Calculator::CalculationResult HBCalculator::doCalc()
 
 	calcMO(hb, mo);
 
-	llvm::outs() << hb << "\n";
-	llvm::outs() << mo << "\n----------\n";
+	auto hbUmo = mergeHBandMO(hb, mo);
+	
+	hbUmo.transClosure();
 
-	return Calculator::CalculationResult(false, true);
+	return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
 }
 
 void HBCalculator::removeAfter(const VectorClock &preds)
@@ -186,6 +187,20 @@ void HBCalculator::addImplicitHB(Calculator::GlobalRelation &hb) {
 			hb.addEdge(labRead->getPos(), adj);
 		}
 	}
+}
+
+Calculator::GlobalRelation HBCalculator::mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
+	auto &g = getGraph();
+
+	Calculator::GlobalRelation merged(hb.getElems());
+
+	for (auto const e : hb.getElems()) {
+		for (auto const adj : hb.getElems()) {
+			if (hb(e, adj) || mo(e, adj)) merged.addEdge(e, adj);
+		}
+	}
+
+	return merged;
 }
 
 bool HBCalculator::isFence(EventLabel *lab) {
