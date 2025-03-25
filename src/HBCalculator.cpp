@@ -152,6 +152,8 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 				auto rf = adjRead->getRf();
 				if (e != rf && labWrite->getAddr() == adjRead->getAddr()) {
 					mo.addEdge(e, rf);
+				} else if (e != rf && rf.isInitializer()) {
+					mo.addEdge(e, rf);
 				}
 
 			} else if (labRead && adjWrite) {
@@ -172,6 +174,10 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 					} else if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) {
 						mo.addEdge(rfLab, rfAdj);
 					}
+				}
+			} else if (adjWrite) {
+				if (e.isInitializer()) {
+					mo.addEdge(e, adj);
 				}
 			}
 		}

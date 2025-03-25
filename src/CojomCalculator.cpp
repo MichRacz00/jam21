@@ -47,10 +47,6 @@ bool CojomCalculator::isCojomAcyclic() {
 		auto vo = merge({vvo, calcPolocRelation()});
 		auto cojom = calcCojom(vo);
 
-		llvm::outs() << getGraph();
-		llvm::outs() << cojom;
-		llvm::outs() << "=======================================================================";
-
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity
 		cojom.transClosure();
