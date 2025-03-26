@@ -45,6 +45,7 @@ Calculator::CalculationResult HBCalculator::doCalc()
 		calcLabelViews(l);
 	}
 	
+	resetViews();
 	return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
 }
 
@@ -265,6 +266,10 @@ bool HBCalculator::isFence(EventLabel *lab) {
 	}
 }
 
+void HBCalculator::resetViews() {
+	raAccessView.clear();
+}
+
 void HBCalculator::calcLabelViews(EventLabel *lab) {
 	const auto &g = getGraph();
  
@@ -281,7 +286,7 @@ void HBCalculator::calcLabelViews(EventLabel *lab) {
 	 	case EventLabel::EL_ConfirmingCasRead:
 	 	case EventLabel::EL_FaiRead:
 	 	case EventLabel::EL_BIncFaiRead:
-		 	//calcReadViews(llvm::dyn_cast<ReadLabel>(lab));
+		 	calcReadViews(llvm::dyn_cast<ReadLabel>(lab));
 		 	break;
 	 	case EventLabel::EL_Write:
 	 	case EventLabel::EL_BInitWrite:
@@ -345,7 +350,30 @@ void HBCalculator::calcLabelViews(EventLabel *lab) {
 void HBCalculator::calcWriteViews(WriteLabel *lab) {
 	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
 		auto const address = lab->getAddr().get();
-		llvm::outs() << address << "\n";
-		raWriteView[address] = 1;
+		raAccessView[address] += 1;
+		
+		printView(raAccessView);
 	}
+}
+
+void HBCalculator::calcReadViews(ReadLabel *lab) {
+	auto const &g = getGraph();
+	if (lab->getOrdering() == llvm::AtomicOrdering::Acquire) {
+		auto const rf = g.getWriteLabel(lab->getRf());
+		if (rf) {
+			if (rf->getOrdering() == llvm::AtomicOrdering::Release) {
+				auto const address = lab->getAddr().get();
+				raAccessView[address] = std::max(raAccessView[address], 0); //todo finish this
+			}
+		}
+	}
+}
+
+template <typename K, typename V>
+void HBCalculator::printView(const std::unordered_map<K, V> &v) {
+	llvm::outs() << "[";
+	for (const auto& [key, value] : v) {
+        llvm::outs() << "(" << key << ": " << value << ") ";
+    }
+	llvm::outs() << "]\n";
 }

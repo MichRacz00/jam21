@@ -27,7 +27,7 @@ public:
 	}
 
 private:
-	std::unordered_map<SAddr::Width, int> raWriteView;
+	std::unordered_map<SAddr::Width, int> raAccessView;
 
 	void addIntraThreadHB(ExecutionGraph::Thread &labels, Calculator::GlobalRelation &hb);
 	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
@@ -38,8 +38,14 @@ private:
 
 	bool isFence(EventLabel *lab);
 
+	void resetViews();
+
 	void calcLabelViews(EventLabel *lab);
 	void calcWriteViews(WriteLabel *lab);
+	void calcReadViews(ReadLabel *lab);
+
+	template <typename K, typename V>
+	void printView(const std::unordered_map<K, V> &v);
 };
 
 #endif /* __VO_CALCULATOR_HPP__ */
