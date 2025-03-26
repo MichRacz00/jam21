@@ -3,6 +3,8 @@
 
 #include "Calculator.hpp"
 #include "ExecutionGraph.hpp"
+#include "SAddr.hpp"
+#include <unordered_map>
 
 class HBCalculator : public Calculator {
 
@@ -25,17 +27,19 @@ public:
 	}
 
 private:
+	std::unordered_map<SAddr::Width, int> raWriteView;
 
 	void addIntraThreadHB(ExecutionGraph::Thread &labels, Calculator::GlobalRelation &hb);
 	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
 	void calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
-	void addImplicitHB(Calculator::GlobalRelation &hb);
 	Calculator::GlobalRelation mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 	void addHBfromInit(Calculator::GlobalRelation &hb);
 	void addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 
 	bool isFence(EventLabel *lab);
 
+	void calcLabelViews(EventLabel *lab);
+	void calcWriteViews(WriteLabel *lab);
 };
 
 #endif /* __VO_CALCULATOR_HPP__ */

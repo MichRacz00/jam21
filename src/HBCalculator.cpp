@@ -33,14 +33,18 @@ Calculator::CalculationResult HBCalculator::doCalc()
 
 	addHBfromMO(hb, mo);
 
-	llvm::outs() << hb << "\n";
-	llvm::outs() << mo << "\n";
-	llvm::outs() << " ============================================================= \n";
-
+	//llvm::outs() << getGraph();
+	//llvm::outs() << hb << "\n";
+	//llvm::outs() << mo << "\n";
+	//llvm::outs() << " ============================================================= \n";
+	
 	auto hbUmo = mergeHBandMO(hb, mo);
-
 	hbUmo.transClosure();
 
+	for (auto const l : labels(g)) {
+		calcLabelViews(l);
+	}
+	
 	return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
 }
 
@@ -134,6 +138,7 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 	for (auto const e : hb.getElems()) {
 		for (auto const adj : hb.getElems()) {
 			if (!hb(e, adj)) continue;
+			if (e == adj) continue;
 
 			auto const lab = g.getEventLabel(e);
 
@@ -184,34 +189,13 @@ void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRela
 	}
 }
 
-void HBCalculator::addImplicitHB(Calculator::GlobalRelation &hb) {
-	auto &g = getGraph();
-
-	for (auto lab : labels(g)) {
-		auto labRead = dynamic_cast<ReadLabel *> (lab);
-		if (!labRead) continue;
-
-		auto read_addr = labRead->getAddr();
-
-		auto rf = labRead->getRf();
-
-		for (auto const adj : hb.getElems()) {
-			//llvm::outs() << rf << adj << "\n";
-			if (!hb(rf, adj)) continue;
-			auto const labWrite = g.getWriteLabel(adj);
-			if (!labWrite) continue;
-			if (labRead->getAddr() != labWrite->getAddr()) continue;
-			hb.addEdge(labRead->getPos(), adj);
-		}
-	}
-}
-
 void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
 	auto &g = getGraph();
 
 	for (auto const e : mo.getElems()) {
 		for (auto const adj : mo.getElems()) {
 			if (!mo(e, adj)) continue;
+			if (e == adj) continue;
 			
 			auto const lab = g.getEventLabel(e);
 
@@ -225,7 +209,7 @@ void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::Globa
 				// RR coh
 				for (auto labR : labWrite->getReadersList()) {
 					for (auto adjR : adjWrite->getReadersList()) {
-						hb.addEdge(labR, adjR);
+						if (labR != adjR) hb.addEdge(labR, adjR);
 					}
 				}
 			}
@@ -234,7 +218,6 @@ void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::Globa
 				// WR coh
 				for (auto r : labWrite->getReadersList()) {
 					hb.addEdge(r, adj);
-					llvm::outs() << "	" << r << " " << adj << "\n";
 				}
 			}
 
@@ -279,5 +262,90 @@ bool HBCalculator::isFence(EventLabel *lab) {
 			return true;
 		default:
 			return false;
+	}
+}
+
+void HBCalculator::calcLabelViews(EventLabel *lab) {
+	const auto &g = getGraph();
+ 
+	switch (lab->getKind()) {
+	 	case EventLabel::EL_Read:
+	 	case EventLabel::EL_BWaitRead:
+	 	case EventLabel::EL_SpeculativeRead:
+	 	case EventLabel::EL_ConfirmingRead:
+	 	case EventLabel::EL_DskRead:
+	 	case EventLabel::EL_CasRead:
+	 	case EventLabel::EL_LockCasRead:
+	 	case EventLabel::EL_TrylockCasRead:
+	 	case EventLabel::EL_HelpedCasRead:
+	 	case EventLabel::EL_ConfirmingCasRead:
+	 	case EventLabel::EL_FaiRead:
+	 	case EventLabel::EL_BIncFaiRead:
+		 	//calcReadViews(llvm::dyn_cast<ReadLabel>(lab));
+		 	break;
+	 	case EventLabel::EL_Write:
+	 	case EventLabel::EL_BInitWrite:
+	 	case EventLabel::EL_BDestroyWrite:
+	 	case EventLabel::EL_UnlockWrite:
+	 	case EventLabel::EL_CasWrite:
+	 	case EventLabel::EL_LockCasWrite:
+	 	case EventLabel::EL_TrylockCasWrite:
+	 	case EventLabel::EL_HelpedCasWrite:
+	 	case EventLabel::EL_ConfirmingCasWrite:
+	 	case EventLabel::EL_FaiWrite:
+	 	case EventLabel::EL_BIncFaiWrite:
+	 	case EventLabel::EL_DskWrite:
+	 	case EventLabel::EL_DskMdWrite:
+	 	case EventLabel::EL_DskDirWrite:
+	 	case EventLabel::EL_DskJnlWrite:
+		 	calcWriteViews(llvm::dyn_cast<WriteLabel>(lab));
+		 	break;
+	 	case EventLabel::EL_Fence:
+	 	case EventLabel::EL_DskFsync:
+	 	case EventLabel::EL_DskSync:
+	 	case EventLabel::EL_DskPbarrier:
+		 	//calcFenceViews(llvm::dyn_cast<FenceLabel>(lab));
+		 	break;
+	 	case EventLabel::EL_ThreadStart:
+		 	//calcStartViews(llvm::dyn_cast<ThreadStartLabel>(lab));
+		 	break;
+	 	case EventLabel::EL_ThreadJoin:
+		 	//calcJoinViews(llvm::dyn_cast<ThreadJoinLabel>(lab));
+		 	break;
+	 	case EventLabel::EL_ThreadCreate:
+	 	case EventLabel::EL_ThreadFinish:
+	 	case EventLabel::EL_Optional:
+	 	case EventLabel::EL_LoopBegin:
+	 	case EventLabel::EL_SpinStart:
+	 	case EventLabel::EL_FaiZNESpinEnd:
+	 	case EventLabel::EL_LockZNESpinEnd:
+		case EventLabel::EL_Malloc:
+	 	case EventLabel::EL_Free:
+	 	case EventLabel::EL_HpRetire:
+	 	case EventLabel::EL_LockLAPOR:
+	 	case EventLabel::EL_UnlockLAPOR:
+		case EventLabel::EL_DskOpen:
+		case EventLabel::EL_HelpingCas:
+		case EventLabel::EL_HpProtect:
+			//calcBasicViews(lab);
+			break;
+		case EventLabel::EL_SmpFenceLKMM:
+			ERROR("LKMM fences can only be used with -lkmm!\n");
+			break;
+	 	case EventLabel::EL_RCULockLKMM:
+	 	case EventLabel::EL_RCUUnlockLKMM:
+	 	case EventLabel::EL_RCUSyncLKMM:
+			ERROR("RCU primitives can only be used with -lkmm!\n");
+			break;
+		default:
+			BUG();
+	}
+}
+
+void HBCalculator::calcWriteViews(WriteLabel *lab) {
+	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
+		auto const address = lab->getAddr().get();
+		llvm::outs() << address << "\n";
+		raWriteView[address] = 1;
 	}
 }
