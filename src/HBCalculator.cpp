@@ -268,11 +268,14 @@ bool HBCalculator::isFence(EventLabel *lab) {
 
 void HBCalculator::resetViews() {
 	raAccessView.clear();
+	currentView.clear();
 }
 
 void HBCalculator::calcLabelViews(EventLabel *lab) {
 	const auto &g = getGraph();
  
+	advanceCurrentView(lab);
+
 	switch (lab->getKind()) {
 	 	case EventLabel::EL_Read:
 	 	case EventLabel::EL_BWaitRead:
@@ -347,26 +350,70 @@ void HBCalculator::calcLabelViews(EventLabel *lab) {
 	}
 }
 
+void HBCalculator::advanceCurrentView(EventLabel *lab) {
+	auto const &g = getGraph();
+	auto const prevLab = g.getPreviousNonEmptyLabel(lab);
+	currentView[makeKey(lab)] = currentView[makeKey(prevLab)];
+	currentView[makeKey(lab)][lab->getThread()] += 1;
+
+	llvm::outs() << lab->getPos();
+	printView(currentView[makeKey(lab)]);
+}
+
 void HBCalculator::calcWriteViews(WriteLabel *lab) {
+	auto const &g = getGraph();
+	auto const prevLab = g.getPreviousLabel(lab);
+
 	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
 		auto const address = lab->getAddr().get();
-		raAccessView[address] += 1;
+
+		// copy raaccess view from previous access (temp measure)
+		raAccessView[makeKey(lab)] = raAccessView[makeKey(prevLab)];
+
+		// set ra access view to current timestamp
+		raAccessView[makeKey(lab)][address] = currentView[makeKey(lab)][lab->getThread()];
 		
-		printView(raAccessView);
+		llvm::outs() << lab->getPos();
+		printView(raAccessView[makeKey(lab)]);
 	}
 }
 
 void HBCalculator::calcReadViews(ReadLabel *lab) {
 	auto const &g = getGraph();
+	auto const prevLab = g.getPreviousLabel(lab);
+
 	if (lab->getOrdering() == llvm::AtomicOrdering::Acquire) {
 		auto const rf = g.getWriteLabel(lab->getRf());
+
 		if (rf) {
 			if (rf->getOrdering() == llvm::AtomicOrdering::Release) {
+				// rf event is a realease write access
 				auto const address = lab->getAddr().get();
-				raAccessView[address] = std::max(raAccessView[address], 0); //todo finish this
+
+				// set index of current view of rf event to maximum of ra access view and current view
+				currentView[makeKey(lab)][rf->getThread()] =
+					std::max(raAccessView[makeKey(rf)][address], currentView[makeKey(lab)][rf->getThread()]);
+
+				llvm::outs() << "      ";
+				printView(currentView[makeKey(lab)]);
 			}
+			
+		} else if (lab->getRf().isInitializer()) {
+			// rf event is the [init] event
+			auto const address = lab->getAddr().get();
+
+			currentView[makeKey(lab)][0] = 0;
+
+			llvm::outs() << "      ";
+			printView(currentView[makeKey(lab)]);
 		}
 	}
+}
+
+std::string HBCalculator::makeKey(const EventLabel *lab) {
+	std::ostringstream oss;
+    oss << lab->getThread() << "-" << lab->getIndex();
+    return oss.str();
 }
 
 template <typename K, typename V>

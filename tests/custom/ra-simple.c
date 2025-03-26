@@ -18,8 +18,8 @@ void *thread_1(void *unused)
 
 void *thread_2(void *unused)
 {
-	atomic_load_explicit(&y, memory_order_acquire);
 	atomic_load_explicit(&x, memory_order_acquire);
+	atomic_load_explicit(&y, memory_order_acquire);
 	return NULL;
 }
 

@@ -27,7 +27,8 @@ public:
 	}
 
 private:
-	std::unordered_map<SAddr::Width, int> raAccessView;
+	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
+	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;
 
 	void addIntraThreadHB(ExecutionGraph::Thread &labels, Calculator::GlobalRelation &hb);
 	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
@@ -41,8 +42,11 @@ private:
 	void resetViews();
 
 	void calcLabelViews(EventLabel *lab);
+	void advanceCurrentView(EventLabel *lab);
 	void calcWriteViews(WriteLabel *lab);
 	void calcReadViews(ReadLabel *lab);
+
+	std::string makeKey(const EventLabel *lab);
 
 	template <typename K, typename V>
 	void printView(const std::unordered_map<K, V> &v);
