@@ -28,7 +28,10 @@ public:
 
 private:
 	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
+
 	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;
+	std::unordered_map<std::string, std::unordered_map<int, int>> releaseView;
+	std::unordered_map<std::string, std::unordered_map<int, int>> acquireView;
 
 	void addIntraThreadHB(ExecutionGraph::Thread &labels, Calculator::GlobalRelation &hb);
 	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
@@ -45,6 +48,7 @@ private:
 	void advanceCurrentView(EventLabel *lab);
 	void calcWriteViews(WriteLabel *lab);
 	void calcReadViews(ReadLabel *lab);
+	void calcFenceViews(FenceLabel *lab);
 
 	std::string makeKey(const EventLabel *lab);
 

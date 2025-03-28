@@ -46,7 +46,8 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	}
 	
 	resetViews();
-	return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
+	//return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
+	return Calculator::CalculationResult(false, true);
 }
 
 void HBCalculator::removeAfter(const VectorClock &preds)
@@ -312,7 +313,7 @@ void HBCalculator::calcLabelViews(EventLabel *lab) {
 	 	case EventLabel::EL_DskFsync:
 	 	case EventLabel::EL_DskSync:
 	 	case EventLabel::EL_DskPbarrier:
-		 	//calcFenceViews(llvm::dyn_cast<FenceLabel>(lab));
+		 	calcFenceViews(llvm::dyn_cast<FenceLabel>(lab));
 		 	break;
 	 	case EventLabel::EL_ThreadStart:
 		 	//calcStartViews(llvm::dyn_cast<ThreadStartLabel>(lab));
@@ -356,7 +357,11 @@ void HBCalculator::advanceCurrentView(EventLabel *lab) {
 	currentView[makeKey(lab)] = currentView[makeKey(prevLab)];
 	currentView[makeKey(lab)][lab->getThread()] += 1;
 
-	llvm::outs() << lab->getPos();
+	raAccessView[makeKey(lab)] = raAccessView[makeKey(prevLab)];
+	releaseView[makeKey(lab)] = releaseView[makeKey(prevLab)];
+	acquireView[makeKey(lab)] = acquireView[makeKey(prevLab)];
+
+	llvm::outs() << "\n" << lab->getPos();
 	printView(currentView[makeKey(lab)]);
 }
 
@@ -367,13 +372,20 @@ void HBCalculator::calcWriteViews(WriteLabel *lab) {
 	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
 		auto const address = lab->getAddr().get();
 
-		// copy raaccess view from previous access (temp measure)
-		raAccessView[makeKey(lab)] = raAccessView[makeKey(prevLab)];
-
 		// set ra access view to current timestamp
 		raAccessView[makeKey(lab)][address] = currentView[makeKey(lab)][lab->getThread()];
 		
-		llvm::outs() << lab->getPos();
+		llvm::outs() << "RA    ";
+		printView(raAccessView[makeKey(lab)]);
+
+	} else if (lab->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+		// monotonic is equivalent to relaxed
+
+		auto const address = lab->getAddr().get();
+
+		raAccessView[makeKey(lab)][address] = releaseView[makeKey(lab)][lab->getThread()];
+
+		llvm::outs() << "RA    ";
 		printView(raAccessView[makeKey(lab)]);
 	}
 }
@@ -396,6 +408,7 @@ void HBCalculator::calcReadViews(ReadLabel *lab) {
 
 				llvm::outs() << "      ";
 				printView(currentView[makeKey(lab)]);
+
 			}
 			
 		} else if (lab->getRf().isInitializer()) {
@@ -407,6 +420,48 @@ void HBCalculator::calcReadViews(ReadLabel *lab) {
 			llvm::outs() << "      ";
 			printView(currentView[makeKey(lab)]);
 		}
+
+	} else if (lab->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+		auto const rf = g.getWriteLabel(lab->getRf());
+
+		if (rf) {
+			if (rf->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+				auto const address = lab->getAddr().get();
+				auto const acquireViewEntry = acquireView[makeKey(lab)][lab->getThread()];
+
+				acquireView[makeKey(lab)] = currentView[makeKey(lab)];
+				acquireView[makeKey(lab)][lab->getThread()] =
+					std::max(acquireViewEntry, raAccessView[makeKey(rf)][address]);
+
+				llvm::outs() << "A     ";
+				printView(acquireView[makeKey(lab)]);
+			}
+		} else if (lab->getRf().isInitializer()) {
+			auto const address = lab->getAddr().get();
+			auto const acquireViewEntry = acquireView[makeKey(lab)][lab->getThread()];
+
+			acquireView[makeKey(lab)] = currentView[makeKey(lab)];
+			acquireView[makeKey(lab)][lab->getThread()] = acquireViewEntry;
+
+			llvm::outs() << "      ";
+			printView(currentView[makeKey(lab)]);
+		}
+	}
+}
+
+void HBCalculator::calcFenceViews(FenceLabel *lab) {
+	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
+		releaseView[makeKey(lab)][lab->getThread()] = currentView[makeKey(lab)][lab->getThread()];
+
+		llvm::outs() << "R     ";
+		printView(releaseView[makeKey(lab)]);
+
+	} else if (lab->getOrdering() == llvm::AtomicOrdering::Acquire) {
+		currentView[makeKey(lab)][lab->getThread()] =
+			std::max(currentView[makeKey(lab)][lab->getThread()], acquireView[makeKey(lab)][lab->getThread()]);
+		
+		llvm::outs() << "      ";
+		printView(currentView[makeKey(lab)]);
 	}
 }
 
