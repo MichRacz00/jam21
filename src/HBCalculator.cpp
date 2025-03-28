@@ -443,8 +443,8 @@ void HBCalculator::calcReadViews(ReadLabel *lab) {
 			acquireView[makeKey(lab)] = currentView[makeKey(lab)];
 			acquireView[makeKey(lab)][lab->getThread()] = acquireViewEntry;
 
-			llvm::outs() << "      ";
-			printView(currentView[makeKey(lab)]);
+			llvm::outs() << "A     ";
+			printView(acquireView[makeKey(lab)]);
 		}
 	}
 }
