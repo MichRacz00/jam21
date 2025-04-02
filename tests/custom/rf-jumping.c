@@ -14,6 +14,8 @@ void *thread_1(void *unused)
 	int x_local = atomic_load_explicit(&x, memory_order_relaxed);
 
 	__VERIFIER_assume(x_local == 2);
+
+	atomic_store_explicit(&y, 1, memory_order_relaxed);
 	
 	return NULL;
 }

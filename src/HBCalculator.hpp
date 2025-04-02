@@ -44,7 +44,8 @@ private:
 	std::unordered_map<EventLabel*, View> hbClocks;
 
 	void calcHB();
-	void calcIntraThreadHB(ExecutionGraph::Thread &thread, EventLabel* halt);
+	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
+	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
 
 	View mergeViews(const View a, const View b);
 

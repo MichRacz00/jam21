@@ -54,22 +54,11 @@ void HBCalculator::calcHB() {
 	auto &g = getGraph();
 
 	for (auto &t : g.getThreadList()) {
-		calcIntraThreadHB(t, t.back().get());
+		calcHB(t, t.back().get());
 	}
 }
 
-View HBCalculator::mergeViews(const View a, const View b) {
-	auto max_size = std::max(a.size(), b.size());
-    View mergedView;
-	
-    for (unsigned int i = 0; i < max_size; ++i) {
-        mergedView[i] = std::max(a[i], b[i]);
-    }
-
-	return mergedView;
-}
-
-void HBCalculator::calcIntraThreadHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
+void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 	std::deque<EventLabel*> previousLabels;
 
@@ -105,7 +94,8 @@ void HBCalculator::calcIntraThreadHB(ExecutionGraph::Thread &thread, EventLabel*
 			if (hbClocks[labRf].empty()) {
 				auto rfTid = labRf->getThread();
 				llvm::outs() << " --- to thread " << rfTid << " --- \n";
-				calcIntraThreadHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
+				calcHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
+				llvm::outs() << " --- return --- \n";
 			}
 
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
@@ -116,49 +106,67 @@ void HBCalculator::calcIntraThreadHB(ExecutionGraph::Thread &thread, EventLabel*
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[previousLabels[1]]);
 		}
 
-		if (previousLabels.size() >= 2 && previousLabels[1]->isSC() && previousLabels[0]->isSC()) {
-			auto const prevHbClock = hbClocks[previousLabels[1]];
-			auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
-			currentHbClock[tid] += 1;
-			hbClocks[previousLabels[0]] = currentHbClock;
-		}
-
-		if (previousLabels.size() >= 3 && previousLabels[1]->isSC() && isFence(previousLabels[1])) {
-			// Advance by 2 to account for a possibly HB ordered intermediate event
-			auto const prevHbClock = hbClocks[previousLabels[2]];
-			auto currentHbClock = View(prevHbClock);
-			currentHbClock[tid] += 2;
-			hbClocks[previousLabels[0]] = currentHbClock;
-		}
-
-		if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
-			// Advance by 2 to account for a possibly HB ordered intermediate event
-			auto const prevHbClock = hbClocks[previousLabels[2]];
-			auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
-			currentHbClock[tid] += 2;
-			hbClocks[previousLabels[0]] = currentHbClock;
-
-		}
-
-		if (previousLabels.size() >= 4 &&
-			previousLabels[1]->getOrdering() == llvm::AtomicOrdering::Release && isFence(previousLabels[1]) &&
-			previousLabels[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(previousLabels[3]) &&
-			(dynamic_cast<WriteLabel*>(previousLabels[2]) || dynamic_cast<ReadLabel*>(previousLabels[2]))) {
-
-				auto const prevHbClock = hbClocks[previousLabels[4]];
-				auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
-				currentHbClock[tid] += 4;
-				hbClocks[previousLabels[0]] = currentHbClock;
-		}
+		calcIntraThreadHB(lab.get(), previousLabels);
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
 		if (previousLabels[0] == halt) {
 			// Reached the last event specified, end calculations
-			llvm::outs() << " --- end --- \n";
+			llvm::outs() << " --- halt --- \n";
 			return;
 		}
     }
 }
+
+void HBCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels) {
+	auto tid = lab->getThread();
+
+	if (previousLabels.size() >= 2 && previousLabels[1]->isSC() && previousLabels[0]->isSC()) {
+		auto const prevHbClock = hbClocks[previousLabels[1]];
+		auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
+		currentHbClock[tid] += 1;
+		hbClocks[previousLabels[0]] = currentHbClock;
+	}
+
+	if (previousLabels.size() >= 3 && previousLabels[1]->isSC() && isFence(previousLabels[1])) {
+		// Advance by 2 to account for a possibly HB ordered intermediate event
+		auto const prevHbClock = hbClocks[previousLabels[2]];
+		auto currentHbClock = View(prevHbClock);
+		currentHbClock[tid] += 2;
+		hbClocks[previousLabels[0]] = currentHbClock;
+	}
+
+	if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
+		// Advance by 2 to account for a possibly HB ordered intermediate event
+		auto const prevHbClock = hbClocks[previousLabels[2]];
+		auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
+		currentHbClock[tid] += 2;
+		hbClocks[previousLabels[0]] = currentHbClock;
+
+	}
+
+	if (previousLabels.size() >= 4 &&
+		previousLabels[1]->getOrdering() == llvm::AtomicOrdering::Release && isFence(previousLabels[1]) &&
+		previousLabels[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(previousLabels[3]) &&
+		(dynamic_cast<WriteLabel*>(previousLabels[2]) || dynamic_cast<ReadLabel*>(previousLabels[2]))) {
+
+			auto const prevHbClock = hbClocks[previousLabels[4]];
+			auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
+			currentHbClock[tid] += 4;
+			hbClocks[previousLabels[0]] = currentHbClock;
+	}
+}
+
+View HBCalculator::mergeViews(const View a, const View b) {
+	auto max_size = std::max(a.size(), b.size());
+    View mergedView;
+	
+    for (unsigned int i = 0; i < max_size; ++i) {
+        mergedView[i] = std::max(a[i], b[i]);
+    }
+
+	return mergedView;
+}
+
 
 void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
 	auto &g = getGraph();
