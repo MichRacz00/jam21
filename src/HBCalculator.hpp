@@ -5,6 +5,7 @@
 #include "ExecutionGraph.hpp"
 #include "SAddr.hpp"
 #include <unordered_map>
+#include <deque>
 
 class EventLabel;
 
@@ -42,13 +43,18 @@ public:
 private:
 	std::unordered_map<EventLabel*, View> hbClocks;
 
+	void calcHB();
+	void calcIntraThreadHB(ExecutionGraph::Thread &thread, EventLabel* halt);
+
+	View mergeViews(const View a, const View b);
+
 	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
 
 	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;
 	std::unordered_map<std::string, std::unordered_map<int, int>> releaseView;
 	std::unordered_map<std::string, std::unordered_map<int, int>> acquireView;
 
-	void addIntraThreadHB(ExecutionGraph::Thread &labels, Calculator::GlobalRelation &hb);
+	
 	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
 	void calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 	Calculator::GlobalRelation mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);

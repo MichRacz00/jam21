@@ -21,15 +21,12 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	Calculator::GlobalRelation hb(allEvents);
 	Calculator::GlobalRelation mo(allEvents);
 
-	for (auto &t : g.getThreadList()) {
-		addIntraThreadHB(t, hb);
-	}
+	calcHB();
+
 	hb.transClosure();
 	
 	addHBfromInit(hb);
 	//addImplicitHB(hb);
-
-	calcMO(hb, mo);
 
 	addHBfromMO(hb, mo);
 
@@ -37,9 +34,6 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	//llvm::outs() << hb << "\n";
 	//llvm::outs() << mo << "\n";
 	//llvm::outs() << " ============================================================= \n";
-	
-	auto hbUmo = mergeHBandMO(hb, mo);
-	hbUmo.transClosure();
 
 	//for (auto const l : labels(g)) {
 	//	calcLabelViews(l);
@@ -56,13 +50,31 @@ void HBCalculator::removeAfter(const VectorClock &preds)
 	return;
 }
 
-void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::GlobalRelation &hb) {
-	std::deque<EventLabel*> previousLabels;
+void HBCalculator::calcHB() {
 	auto &g = getGraph();
+
+	for (auto &t : g.getThreadList()) {
+		calcIntraThreadHB(t, t.back().get());
+	}
+}
+
+View HBCalculator::mergeViews(const View a, const View b) {
+	auto max_size = std::max(a.size(), b.size());
+    View mergedView;
+	
+    for (unsigned int i = 0; i < max_size; ++i) {
+        mergedView[i] = std::max(a[i], b[i]);
+    }
+
+	return mergedView;
+}
+
+void HBCalculator::calcIntraThreadHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
+	auto &g = getGraph();
+	std::deque<EventLabel*> previousLabels;
 
 	auto firstThreadEvent = thread.front().get();
 	auto const tid = firstThreadEvent->getThread();
-
 	auto firstThreadEventLab = dynamic_cast<ThreadStartLabel*>(firstThreadEvent);
 	auto threadCreateEvent = g.getEventLabel(firstThreadEventLab->getParentCreate());
 
@@ -74,8 +86,6 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::
 	hbClocks[firstThreadEvent] = View(prevThreadClock);
 
 	llvm::outs() << " --- " << tid << " --- \n";
-	llvm::outs() << hbClocks[firstThreadEvent] << "\n";
-	llvm::outs() << " --- - --- \n";
 
     for (auto &lab : thread) {
 		// Keep track of 4 previous labels
@@ -83,13 +93,32 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::
 		previousLabels.push_front(lab.get());
 		if (previousLabels.size() > 5) previousLabels.pop_back();
 
+		if (!hbClocks[previousLabels[0]].empty()) {
+			// VC is already calculated for this event, skip
+			continue;
+		}
+
+		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
+		if (labRead) {
+			auto labRf = g.getEventLabel(labRead->getRf());
+
+			if (hbClocks[labRf].empty()) {
+				auto rfTid = labRf->getThread();
+				llvm::outs() << " --- to thread " << rfTid << " --- \n";
+				calcIntraThreadHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
+			}
+
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
+		}
+
 		if (previousLabels.size() >= 2) {
-			hbClocks[previousLabels[0]] = View(hbClocks[previousLabels[1]]);
+			// Copy previous VC to this event
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[previousLabels[1]]);
 		}
 
 		if (previousLabels.size() >= 2 && previousLabels[1]->isSC() && previousLabels[0]->isSC()) {
 			auto const prevHbClock = hbClocks[previousLabels[1]];
-			auto currentHbClock = View(prevHbClock);
+			auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
 			currentHbClock[tid] += 1;
 			hbClocks[previousLabels[0]] = currentHbClock;
 		}
@@ -105,7 +134,7 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::
 		if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
 			// Advance by 2 to account for a possibly HB ordered intermediate event
 			auto const prevHbClock = hbClocks[previousLabels[2]];
-			auto currentHbClock = View(prevHbClock);
+			auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
 			currentHbClock[tid] += 2;
 			hbClocks[previousLabels[0]] = currentHbClock;
 
@@ -116,70 +145,26 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::
 			previousLabels[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(previousLabels[3]) &&
 			(dynamic_cast<WriteLabel*>(previousLabels[2]) || dynamic_cast<ReadLabel*>(previousLabels[2]))) {
 
-				auto const prevHbClock = hbClocks[previousLabels[2]];
-				auto currentHbClock = View(prevHbClock);
+				auto const prevHbClock = hbClocks[previousLabels[4]];
+				auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
 				currentHbClock[tid] += 4;
 				hbClocks[previousLabels[0]] = currentHbClock;
 		}
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
+		if (previousLabels[0] == halt) {
+			// Reached the last event specified, end calculations
+			llvm::outs() << " --- end --- \n";
+			return;
+		}
     }
 }
 
 void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
 	auto &g = getGraph();
 
-	for (auto const e : hb.getElems()) {
-		for (auto const adj : hb.getElems()) {
-			if (!hb(e, adj)) continue;
-			if (e == adj) continue;
+	for (auto const lab : labels(g)) {
 
-			auto const lab = g.getEventLabel(e);
-
-			auto const labWrite = dynamic_cast<WriteLabel *>(lab);
-			auto const labRead = dynamic_cast<ReadLabel *>(lab);
-
-			auto const adjWrite = g.getWriteLabel(adj);
-			auto const adjRead = g.getReadLabel(adj);
-
-			if (labWrite && adjWrite) {
-				if (labWrite->getAddr() == adjWrite->getAddr()) {
-					mo.addEdge(e, adj);
-				}
-
-			} else if (labWrite && adjRead) {
-				auto rf = adjRead->getRf();
-				if (e != rf && labWrite->getAddr() == adjRead->getAddr()) {
-					mo.addEdge(e, rf);
-				} else if (e != rf && rf.isInitializer()) {
-					mo.addEdge(e, rf);
-				}
-
-			} else if (labRead && adjWrite) {
-				auto rf = labRead->getRf();
-				if (rf.isInitializer()) {
-					mo.addEdge(rf, adj);
-				} else if (g.getWriteLabel(rf)->getAddr() == adjWrite->getAddr()) {
-					mo.addEdge(rf, adj);
-				}
-
-			} else if (labRead && adjRead) {
-				auto rfLab = labRead->getRf();
-				auto rfAdj = adjRead->getRf();
-
-				if (rfLab != rfAdj) {
-					if (rfLab.isInitializer() || rfAdj.isInitializer()) {
-						mo.addEdge(rfLab, rfAdj);	
-					} else if (g.getWriteLabel(rfLab)->getAddr() == g.getWriteLabel(rfAdj)->getAddr()) {
-						mo.addEdge(rfLab, rfAdj);
-					}
-				}
-			} else if (adjWrite) {
-				if (e.isInitializer()) {
-					mo.addEdge(e, adj);
-				}
-			}
-		}
 	}
 }
 
