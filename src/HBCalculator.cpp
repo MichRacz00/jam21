@@ -41,9 +41,9 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	auto hbUmo = mergeHBandMO(hb, mo);
 	hbUmo.transClosure();
 
-	for (auto const l : labels(g)) {
-		calcLabelViews(l);
-	}
+	//for (auto const l : labels(g)) {
+	//	calcLabelViews(l);
+	//}
 	
 	resetViews();
 	//return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
@@ -56,80 +56,39 @@ void HBCalculator::removeAfter(const VectorClock &preds)
 	return;
 }
 
-void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb) {
-	std::deque<EventLabel*> lastLabels;
-	std::map<SAddr, Event> previousAccess;
+void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::GlobalRelation &hb) {
+	std::deque<EventLabel*> previousLabels;
 	auto &g = getGraph();
 
-    for (auto &lab : eventLabels) {
-		lastLabels.push_back(lab.get());
-		if (lastLabels.size() > 5) lastLabels.pop_front();
+	auto firstThreadEvent = thread.front().get();
+	auto const tid = firstThreadEvent->getThread();
 
-		auto labMemAccess = dynamic_cast<MemAccessLabel*>(lab.get());
-		if (labMemAccess) {
-			if (previousAccess.find(labMemAccess->getAddr()) == previousAccess.end()) {
-				auto firstThreadEvent = eventLabels.front().get();
-				hb.addEdge(firstThreadEvent->getPos(), labMemAccess->getPos());
-				previousAccess[labMemAccess->getAddr()] = labMemAccess->getPos();
-			} else {
-				auto prevAccessLab = previousAccess[labMemAccess->getAddr()];
-				hb.addEdge(prevAccessLab, labMemAccess->getPos());
-				previousAccess[labMemAccess->getAddr()] = labMemAccess->getPos();
-			}
-		}	
+	auto firstThreadEventLab = dynamic_cast<ThreadStartLabel*>(firstThreadEvent);
+	auto threadCreateEvent = g.getEventLabel(firstThreadEventLab->getParentCreate());
 
-		auto labThreadStart = dynamic_cast<ThreadStartLabel*>(lab.get());
-		if (labThreadStart) {
-			auto labCreate = labThreadStart->getParentCreate();
-			if (labCreate != labThreadStart->getPos()) {
-				hb.addEdge(labCreate, labThreadStart->getPos());
-			}
+	// Copy HB vector clock from event that created this thread
+	// Advance HB by one in this thread to indicate the thread
+	// has started
+	auto prevThreadClock = hbClocks[threadCreateEvent];
+	prevThreadClock[tid] += 1;
+	hbClocks[firstThreadEvent] = prevThreadClock;
+
+    for (auto &lab : thread) {
+		// Keep track of 4 previous labels
+		// add current label for future reference
+		previousLabels.push_back(lab.get());
+		if (previousLabels.size() > 5) previousLabels.pop_front();
+
+		llvm::outs() << previousLabels.back()->getPos() << " | ";
+		for (auto l : previousLabels) {
+			llvm::outs() << l->getPos() << " ";
 		}
+		llvm::outs() << "\n";
 
-		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
-		if (labRead) {
-			auto labRf = labRead->getRf();
-			hb.addEdge(labRf, labRead->getPos());
-		}
-
-		if (lastLabels.size() >= 2) {
-			auto last = lastLabels.back();
-            auto oneButLast = *(std::next(lastLabels.rbegin()));
-
-			if (last->isSC() && oneButLast->isSC()) {
-				// volint
-				hb.addEdge(oneButLast->getPos(), last->getPos());
-			}
-
-			if (lastLabels.size() >= 3) {
-				auto twoButLast = *(std::next(lastLabels.rbegin(), 2));
-
-				if (oneButLast->isSC() && isFence(oneButLast)) {
-					// spush
-					hb.addEdge(twoButLast->getPos(), last->getPos());
-				}
-
-				if (oneButLast->isSC() || oneButLast->isAtLeastAcquire() || oneButLast->isAtLeastRelease()) {
-					// ra
-					hb.addEdge(twoButLast->getPos(), last->getPos());
-				}
-				
-				if (lastLabels.size() >= 5) {
-					auto threeButLast = *(std::next(lastLabels.rbegin(), 3));
-					auto fourButLast = *(std::next(lastLabels.rbegin(), 4));
-
-					auto writeCast = dynamic_cast<WriteLabel*>(threeButLast);
-					auto readCast = dynamic_cast<ReadLabel*>(threeButLast);
-
-					if (writeCast || readCast) {
-						if (isFence(fourButLast) && fourButLast->isAtLeastRelease() && isFence(twoButLast) && twoButLast->isAtLeastAcquire()) {
-							// svo
-							auto first = *(std::next(lastLabels.rbegin(), 5));
-							hb.addEdge(first->getPos(), last->getPos());
-						}
-					}
-				}
-			}
+		if (lab.get()->isSC() && previousLabels.back()->isSC()) {
+			auto prevHBView = previousLabels.back()->getHbView();
+			prevHBView[lab.get()->getThread()] += 1;
+			llvm::outs() << prevHBView << "\n";
 		}
     }
 }
@@ -361,7 +320,7 @@ void HBCalculator::advanceCurrentView(EventLabel *lab) {
 	releaseView[makeKey(lab)] = releaseView[makeKey(prevLab)];
 	acquireView[makeKey(lab)] = acquireView[makeKey(prevLab)];
 
-	llvm::outs() << "\n" << lab->getPos();
+	llvm::outs() << lab->getPos();
 	printView(currentView[makeKey(lab)]);
 }
 
@@ -375,7 +334,7 @@ void HBCalculator::calcWriteViews(WriteLabel *lab) {
 		// set ra access view to current timestamp
 		raAccessView[makeKey(lab)][address] = currentView[makeKey(lab)][lab->getThread()];
 		
-		llvm::outs() << "RA    ";
+		llvm::outs() << "RF    ";
 		printView(raAccessView[makeKey(lab)]);
 
 	} else if (lab->getOrdering() == llvm::AtomicOrdering::Monotonic) {
@@ -385,7 +344,7 @@ void HBCalculator::calcWriteViews(WriteLabel *lab) {
 
 		raAccessView[makeKey(lab)][address] = releaseView[makeKey(lab)][lab->getThread()];
 
-		llvm::outs() << "RA    ";
+		llvm::outs() << "RF    ";
 		printView(raAccessView[makeKey(lab)]);
 	}
 }

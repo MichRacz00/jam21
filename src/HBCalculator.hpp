@@ -6,6 +6,19 @@
 #include "SAddr.hpp"
 #include <unordered_map>
 
+class EventLabel;
+
+// Declaration of a hashing function for EventLabel
+// which allos EventLabel to be a key in a hash map
+namespace std {
+    template <>
+    struct hash<EventLabel*> {
+        size_t operator()(const EventLabel* label) const {
+            return reinterpret_cast<size_t>(label);
+        }
+    };
+}
+
 class HBCalculator : public Calculator {
 
 public:
@@ -27,6 +40,8 @@ public:
 	}
 
 private:
+	std::unordered_map<EventLabel*, std::unordered_map<int, double>> hbClocks;
+
 	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
 
 	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;

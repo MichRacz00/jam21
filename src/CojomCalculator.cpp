@@ -410,7 +410,7 @@ Calculator::GlobalRelation CojomCalculator::calcCowr(GlobalRelation vo) {
 				// The final event is not a write
 				// This should not be triggered unless
 				// we have reached the initalizer event
-				tryAddEdge(elem, finalWriteElem, &cowr);
+				tryAddEdge(elem, finalWriteElem, &cowr); //coment out to fail Szymanski
 				continue;
 			}
 
