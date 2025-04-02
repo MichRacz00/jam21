@@ -46,6 +46,7 @@ private:
 	void calcHB();
 	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
+	void calcMO();
 
 	View mergeViews(const View a, const View b);
 
@@ -57,7 +58,6 @@ private:
 
 	
 	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
-	void calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 	Calculator::GlobalRelation mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
 	void addHBfromInit(Calculator::GlobalRelation &hb);
 	void addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);

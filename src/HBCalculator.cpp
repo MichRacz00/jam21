@@ -22,6 +22,7 @@ Calculator::CalculationResult HBCalculator::doCalc()
 	Calculator::GlobalRelation mo(allEvents);
 
 	calcHB();
+	calcMO();
 
 	hb.transClosure();
 	
@@ -61,6 +62,8 @@ void HBCalculator::calcHB() {
 void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 	std::deque<EventLabel*> previousLabels;
+	
+	std::unordered_map<SAddr, View> previousAccess;
 
 	auto firstThreadEvent = thread.front().get();
 	auto const tid = firstThreadEvent->getThread();
@@ -82,23 +85,17 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		previousLabels.push_front(lab.get());
 		if (previousLabels.size() > 5) previousLabels.pop_back();
 
+		// Remember last HB view to this location
+		View previousAccessView;
+		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (memAccessLab) {
+			previousAccessView = previousAccess[memAccessLab->getAddr()];
+			previousAccess[memAccessLab->getAddr()] = hbClocks[memAccessLab];
+		}
+
 		if (!hbClocks[previousLabels[0]].empty()) {
 			// VC is already calculated for this event, skip
 			continue;
-		}
-
-		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
-		if (labRead) {
-			auto labRf = g.getEventLabel(labRead->getRf());
-
-			if (hbClocks[labRf].empty()) {
-				auto rfTid = labRf->getThread();
-				llvm::outs() << " --- to thread " << rfTid << " --- \n";
-				calcHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
-				llvm::outs() << " --- return --- \n";
-			}
-
-			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
 		}
 
 		if (previousLabels.size() >= 2) {
@@ -106,7 +103,31 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[previousLabels[1]]);
 		}
 
+		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
+		if (labRead) {
+			// Read event, get VC from write
+			auto labRf = g.getEventLabel(labRead->getRf());
+
+			if (hbClocks[labRf].empty()) {
+				// Write VC not yet calculated, calculate it and return
+				auto rfTid = labRf->getThread();
+				llvm::outs() << " --- to thread " << rfTid << " --- \n";
+				calcHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
+				llvm::outs() << " --- return --- \n";
+			}
+
+			// Merge read and write VCs related by RF
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
+		}
+
 		calcIntraThreadHB(lab.get(), previousLabels);
+
+		// Memory access, advance VC by at least one from last access to this location
+		// in this thread (po-loc)
+		if (memAccessLab) {
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccessView);
+			hbClocks[previousLabels[0]][tid] += 1;
+		}
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
 		if (previousLabels[0] == halt) {
@@ -167,12 +188,13 @@ View HBCalculator::mergeViews(const View a, const View b) {
 	return mergedView;
 }
 
-
-void HBCalculator::calcMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
+void HBCalculator::calcMO() {
 	auto &g = getGraph();
 
-	for (auto const lab : labels(g)) {
+	std::unordered_map<SAddr, View> last;
 
+	for (auto const lab : labels(g)) {
+		//auto const 
 	}
 }
 
