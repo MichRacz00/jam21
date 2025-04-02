@@ -62,7 +62,6 @@ void HBCalculator::calcHB() {
 void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 	std::deque<EventLabel*> previousLabels;
-	
 	std::unordered_map<SAddr, View> previousAccess;
 
 	auto firstThreadEvent = thread.front().get();
@@ -191,10 +190,25 @@ View HBCalculator::mergeViews(const View a, const View b) {
 void HBCalculator::calcMO() {
 	auto &g = getGraph();
 
-	std::unordered_map<SAddr, View> last;
+	std::unordered_map<SAddr, View> previousWriteAccess;
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
-	for (auto const lab : labels(g)) {
-		//auto const 
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& a, const auto& b) { 
+        return !(b.second <= a.second);
+    });
+
+	for (auto pair : sortedHbClocks) {
+    	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
+
+		if (writeAccess && previousWriteAccess.find(writeAccess->getAddr()) == previousWriteAccess.end()) {
+			previousWriteAccess[writeAccess->getAddr()] = pair.second;
+			continue;
+
+		} else if (writeAccess && !(pair.second <= previousWriteAccess[writeAccess->getAddr()])) {
+			llvm::outs() << pair.second << " > " << previousWriteAccess[writeAccess->getAddr()] << "\n";
+			previousWriteAccess[writeAccess->getAddr()] = pair.second;
+		}
 	}
 }
 
