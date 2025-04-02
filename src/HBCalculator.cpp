@@ -2,8 +2,8 @@
 #include "Error.hpp"
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
-#include <deque>
 #include <map>
+#include <deque>
 
 void HBCalculator::initCalc()
 {
@@ -71,25 +71,58 @@ void HBCalculator::addIntraThreadHB(ExecutionGraph::Thread &thread, Calculator::
 	// has started
 	auto prevThreadClock = hbClocks[threadCreateEvent];
 	prevThreadClock[tid] += 1;
-	hbClocks[firstThreadEvent] = prevThreadClock;
+	hbClocks[firstThreadEvent] = View(prevThreadClock);
+
+	llvm::outs() << " --- " << tid << " --- \n";
+	llvm::outs() << hbClocks[firstThreadEvent] << "\n";
+	llvm::outs() << " --- - --- \n";
 
     for (auto &lab : thread) {
 		// Keep track of 4 previous labels
 		// add current label for future reference
-		previousLabels.push_back(lab.get());
-		if (previousLabels.size() > 5) previousLabels.pop_front();
+		previousLabels.push_front(lab.get());
+		if (previousLabels.size() > 5) previousLabels.pop_back();
 
-		llvm::outs() << previousLabels.back()->getPos() << " | ";
-		for (auto l : previousLabels) {
-			llvm::outs() << l->getPos() << " ";
+		if (previousLabels.size() >= 2) {
+			hbClocks[previousLabels[0]] = View(hbClocks[previousLabels[1]]);
 		}
-		llvm::outs() << "\n";
 
-		if (lab.get()->isSC() && previousLabels.back()->isSC()) {
-			auto prevHBView = previousLabels.back()->getHbView();
-			prevHBView[lab.get()->getThread()] += 1;
-			llvm::outs() << prevHBView << "\n";
+		if (previousLabels.size() >= 2 && previousLabels[1]->isSC() && previousLabels[0]->isSC()) {
+			auto const prevHbClock = hbClocks[previousLabels[1]];
+			auto currentHbClock = View(prevHbClock);
+			currentHbClock[tid] += 1;
+			hbClocks[previousLabels[0]] = currentHbClock;
 		}
+
+		if (previousLabels.size() >= 3 && previousLabels[1]->isSC() && isFence(previousLabels[1])) {
+			// Advance by 2 to account for a possibly HB ordered intermediate event
+			auto const prevHbClock = hbClocks[previousLabels[2]];
+			auto currentHbClock = View(prevHbClock);
+			currentHbClock[tid] += 2;
+			hbClocks[previousLabels[0]] = currentHbClock;
+		}
+
+		if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
+			// Advance by 2 to account for a possibly HB ordered intermediate event
+			auto const prevHbClock = hbClocks[previousLabels[2]];
+			auto currentHbClock = View(prevHbClock);
+			currentHbClock[tid] += 2;
+			hbClocks[previousLabels[0]] = currentHbClock;
+
+		}
+
+		if (previousLabels.size() >= 4 &&
+			previousLabels[1]->getOrdering() == llvm::AtomicOrdering::Release && isFence(previousLabels[1]) &&
+			previousLabels[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(previousLabels[3]) &&
+			(dynamic_cast<WriteLabel*>(previousLabels[2]) || dynamic_cast<ReadLabel*>(previousLabels[2]))) {
+
+				auto const prevHbClock = hbClocks[previousLabels[2]];
+				auto currentHbClock = View(prevHbClock);
+				currentHbClock[tid] += 4;
+				hbClocks[previousLabels[0]] = currentHbClock;
+		}
+
+		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
     }
 }
 

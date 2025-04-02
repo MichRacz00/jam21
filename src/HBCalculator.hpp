@@ -40,7 +40,7 @@ public:
 	}
 
 private:
-	std::unordered_map<EventLabel*, std::unordered_map<int, double>> hbClocks;
+	std::unordered_map<EventLabel*, View> hbClocks;
 
 	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
 
