@@ -190,7 +190,8 @@ View HBCalculator::mergeViews(const View a, const View b) {
 void HBCalculator::calcMO() {
 	auto &g = getGraph();
 
-	std::unordered_map<SAddr, View> previousWriteAccess;
+	std::unordered_map<SAddr, std::set<EventLabel*>> previousWriteAccess;
+	std::unordered_map<SAddr, std::set<EventLabel*>> previousReadAccess;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
@@ -200,16 +201,82 @@ void HBCalculator::calcMO() {
 
 	for (auto pair : sortedHbClocks) {
     	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
+		auto const readAccess = dynamic_cast<ReadLabel*>(pair.first);
 
-		if (writeAccess && previousWriteAccess.find(writeAccess->getAddr()) == previousWriteAccess.end()) {
-			previousWriteAccess[writeAccess->getAddr()] = pair.second;
-			continue;
+		if (writeAccess) {
+			auto const addr = writeAccess->getAddr();
 
-		} else if (writeAccess && !(pair.second <= previousWriteAccess[writeAccess->getAddr()])) {
-			llvm::outs() << pair.second << " > " << previousWriteAccess[writeAccess->getAddr()] << "\n";
-			previousWriteAccess[writeAccess->getAddr()] = pair.second;
+			if (previousWriteAccess.find(addr) == previousWriteAccess.end()) {
+				updateSet(previousWriteAccess[addr], writeAccess);
+	
+			} else {
+				auto previousWrite = getMaximalHBEvent(previousWriteAccess[addr], writeAccess);
+				if (previousWrite) {
+					// Some write found in HB
+					llvm::outs() << previousWrite->getPos() << " -ww-> " << writeAccess->getPos() << "\n";
+					updateSet(previousWriteAccess[addr], writeAccess);
+				} else {
+					// No writes found in HB
+				}
+				updateSet(previousWriteAccess[addr], writeAccess);
+			}
+
+		} else if (readAccess) {
+			auto const addr = readAccess->getAddr();
+
+			if (previousReadAccess.find(addr) == previousReadAccess.end()) {
+				updateSet(previousReadAccess[addr], readAccess);
+				continue;
+			}
+
+			auto previousWrite = getMaximalHBEvent(previousWriteAccess[addr], readAccess);
+			auto const rfLab = g.getEventLabel(readAccess->getRf());
+			if (previousWrite && rfLab != previousWrite) {
+				llvm::outs() << previousWrite->getPos() << " -wr-> " << rfLab->getPos() << "\n";
+			}
+			
+
+			updateSet(previousReadAccess[addr], readAccess);
 		}
 	}
+}
+
+void HBCalculator::updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent) {
+	if (&events == nullptr) {
+        std::set<EventLabel*> newSet;
+        events = newSet;
+    }
+	bool erased = false;
+
+	for (auto it = events.begin(); it != events.end();) {
+        if (!(hbClocks[hbEvent] <= hbClocks[*it])) {
+            it = events.erase(it);
+			erased = true;
+			break;
+        } else {
+            ++it;
+        }
+    }
+
+	if (erased || events.empty()) events.insert(hbEvent);
+}
+
+EventLabel* HBCalculator::getMaximalHBEvent(std::set<EventLabel*> &events, EventLabel* hbEvent) {
+	EventLabel* maximalEvent = nullptr;
+
+    for (auto* event : events) {
+        if (hbClocks[event] <= hbClocks[hbEvent]) {
+            if (!maximalEvent || hbClocks[maximalEvent] <= hbClocks[event]) {
+                maximalEvent = event;
+            }
+        }
+    }
+
+    return maximalEvent;
+}
+
+void HBCalculator::addFRtoHB(WriteLabel* labOut, WriteLabel* labIn) {
+
 }
 
 void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {

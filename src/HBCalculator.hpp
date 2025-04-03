@@ -6,6 +6,7 @@
 #include "SAddr.hpp"
 #include <unordered_map>
 #include <deque>
+#include <set>
 
 class EventLabel;
 
@@ -48,8 +49,11 @@ private:
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
 	void calcMO();
 
+	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
+	void updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent);
+	EventLabel* getMaximalHBEvent(std::set<EventLabel*> &events, EventLabel* hbEvent);
 	View mergeViews(const View a, const View b);
-
+	
 	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
 
 	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;
