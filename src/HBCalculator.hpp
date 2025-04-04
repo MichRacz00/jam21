@@ -43,11 +43,15 @@ public:
 
 private:
 	std::unordered_map<EventLabel*, View> hbClocks;
+	std::unordered_map<EventLabel*, View> moClocks;
+	std::unordered_map<SAddr, std::vector<WriteLabel*>> mo;
 
 	void calcHB();
 	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
+	void calcFR();
 	void calcMO();
+	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
 	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
 	void updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClocks, EventLabel* start, View newView);
