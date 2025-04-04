@@ -53,7 +53,8 @@ private:
 	void updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent);
 	EventLabel* getMaximalHBEvent(std::set<EventLabel*> &events, EventLabel* hbEvent);
 	View mergeViews(const View a, const View b);
-	
+	bool isViewStrictlyGreater(const View a, const View b);
+
 	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
 
 	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;

@@ -190,7 +190,7 @@ View HBCalculator::mergeViews(const View a, const View b) {
 void HBCalculator::calcMO() {
 	auto &g = getGraph();
 
-	std::unordered_map<SAddr, std::set<EventLabel*>> previousWriteAccess;
+	std::unordered_map<SAddr, std::set<EventLabel*>> previousWrites;
 	std::unordered_map<SAddr, std::set<EventLabel*>> previousReadAccess;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
@@ -206,39 +206,48 @@ void HBCalculator::calcMO() {
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
 
-			if (previousWriteAccess.find(addr) == previousWriteAccess.end()) {
-				updateSet(previousWriteAccess[addr], writeAccess);
+			if (previousWrites.find(addr) == previousWrites.end()) {
+				previousWrites[addr] = std::set<EventLabel*> {writeAccess};
 	
 			} else {
-				auto previousWrite = getMaximalHBEvent(previousWriteAccess[addr], writeAccess);
-				if (previousWrite) {
-					// Some write found in HB
-					llvm::outs() << previousWrite->getPos() << " -ww-> " << writeAccess->getPos() << "\n";
-					updateSet(previousWriteAccess[addr], writeAccess);
-				} else {
-					// No writes found in HB
+				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
+					auto previousWrite = *it;
+					
+					if (previousWrite == writeAccess) { ++it; continue; }
+				
+					if (isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[writeAccess])) {
+						llvm::outs() << previousWrite->getPos() << hbClocks[previousWrite] << " < " << writeAccess->getPos() << hbClocks[writeAccess] << "\n";
+						// Erase events with View that is in HB of the current write access
+						it = previousWrites[addr].erase(it);
+					} else {
+						++it;
+					}
+
+					previousWrites[addr].insert(writeAccess);
+
+					for (auto w : previousWrites[addr]) {
+						llvm::outs() << w->getPos();
+					}
+					llvm::outs() << "\n";
 				}
-				updateSet(previousWriteAccess[addr], writeAccess);
 			}
 
 		} else if (readAccess) {
-			auto const addr = readAccess->getAddr();
-
-			if (previousReadAccess.find(addr) == previousReadAccess.end()) {
-				updateSet(previousReadAccess[addr], readAccess);
-				continue;
-			}
-
-			auto previousWrite = getMaximalHBEvent(previousWriteAccess[addr], readAccess);
-			auto const rfLab = g.getEventLabel(readAccess->getRf());
-			if (previousWrite && rfLab != previousWrite) {
-				llvm::outs() << previousWrite->getPos() << " -wr-> " << rfLab->getPos() << "\n";
-			}
 			
-
-			updateSet(previousReadAccess[addr], readAccess);
 		}
 	}
+}
+
+bool HBCalculator::isViewStrictlyGreater(View a, View b) {
+	int size = std::max(a.size(), b.size());
+
+	for (int i = 0; i < size; i ++) {
+        if (b[i] < a[i]) {
+			return false;
+		}
+    }
+
+    return true;
 }
 
 void HBCalculator::updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent) {
@@ -246,19 +255,17 @@ void HBCalculator::updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent)
         std::set<EventLabel*> newSet;
         events = newSet;
     }
-	bool erased = false;
 
 	for (auto it = events.begin(); it != events.end();) {
         if (!(hbClocks[hbEvent] <= hbClocks[*it])) {
-            it = events.erase(it);
-			erased = true;
-			break;
+            //it = events.erase(it);
+			++it;
         } else {
             ++it;
         }
     }
 
-	if (erased || events.empty()) events.insert(hbEvent);
+	events.insert(hbEvent);
 }
 
 EventLabel* HBCalculator::getMaximalHBEvent(std::set<EventLabel*> &events, EventLabel* hbEvent) {
@@ -356,8 +363,7 @@ bool HBCalculator::isFence(EventLabel *lab) {
 }
 
 void HBCalculator::resetViews() {
-	raAccessView.clear();
-	currentView.clear();
+	hbClocks.clear();
 }
 
 void HBCalculator::calcLabelViews(EventLabel *lab) {
