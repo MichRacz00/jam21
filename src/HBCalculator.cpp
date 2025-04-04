@@ -190,8 +190,7 @@ View HBCalculator::mergeViews(const View a, const View b) {
 void HBCalculator::calcMO() {
 	auto &g = getGraph();
 
-	std::unordered_map<SAddr, std::set<EventLabel*>> previousWrites;
-	std::unordered_map<SAddr, std::set<EventLabel*>> previousReadAccess;
+	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
@@ -207,33 +206,33 @@ void HBCalculator::calcMO() {
 			auto const addr = writeAccess->getAddr();
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
-				previousWrites[addr] = std::set<EventLabel*> {writeAccess};
+				previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
 	
 			} else {
 				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 					auto previousWrite = *it;
-					
 					if (previousWrite == writeAccess) { ++it; continue; }
-				
+
 					if (isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[writeAccess])) {
-						llvm::outs() << previousWrite->getPos() << hbClocks[previousWrite] << " < " << writeAccess->getPos() << hbClocks[writeAccess] << "\n";
+						llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
+						for (auto r : previousWrite->getReadersList()) {
+							llvm::outs() << r << " -fr-> " << writeAccess->getPos() << "\n";
+						}
 						// Erase events with View that is in HB of the current write access
 						it = previousWrites[addr].erase(it);
 					} else {
 						++it;
 					}
-
-					previousWrites[addr].insert(writeAccess);
-
-					for (auto w : previousWrites[addr]) {
-						llvm::outs() << w->getPos();
-					}
-					llvm::outs() << "\n";
 				}
+
+				previousWrites[addr].insert(writeAccess);
+
+				for (auto w : previousWrites[addr]) {
+					llvm::outs() << w->getPos();
+				}
+				llvm::outs() << "\n";
 			}
 
-		} else if (readAccess) {
-			
 		}
 	}
 }
