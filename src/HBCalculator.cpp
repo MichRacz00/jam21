@@ -14,34 +14,16 @@ void HBCalculator::initCalc()
 
 Calculator::CalculationResult HBCalculator::doCalc()
 {
-	auto &g = getGraph();
-
-	std::vector<Event> allEvents;
-	for (auto const lab : labels(g)) allEvents.push_back(lab->getPos());
-	Calculator::GlobalRelation hb(allEvents);
-	Calculator::GlobalRelation mo(allEvents);
-
 	calcHB();
 	calcMO();
 
-	hb.transClosure();
-	
-	addHBfromInit(hb);
-	//addImplicitHB(hb);
+	llvm::outs() << "\n";
+	for (auto h : hbClocks) {
+		llvm::outs() << h.first->getPos() << " " << h.second << "\n";
+	}
 
-	addHBfromMO(hb, mo);
-
-	//llvm::outs() << getGraph();
-	//llvm::outs() << hb << "\n";
-	//llvm::outs() << mo << "\n";
-	//llvm::outs() << " ============================================================= \n";
-
-	//for (auto const l : labels(g)) {
-	//	calcLabelViews(l);
-	//}
-	
 	resetViews();
-	//return Calculator::CalculationResult(false, hbUmo.isIrreflexive());
+
 	return Calculator::CalculationResult(false, true);
 }
 
@@ -192,6 +174,7 @@ void HBCalculator::calcMO() {
 
 	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
+	auto updatedHbClocks = hbClocks;
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
     [](const auto& a, const auto& b) { 
@@ -217,6 +200,7 @@ void HBCalculator::calcMO() {
 						llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 						for (auto r : previousWrite->getReadersList()) {
 							llvm::outs() << r << " -fr-> " << writeAccess->getPos() << "\n";
+							updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[g.getEventLabel(r)]);
 						}
 						// Erase events with View that is in HB of the current write access
 						it = previousWrites[addr].erase(it);
@@ -224,17 +208,13 @@ void HBCalculator::calcMO() {
 						++it;
 					}
 				}
-
+				
 				previousWrites[addr].insert(writeAccess);
-
-				for (auto w : previousWrites[addr]) {
-					llvm::outs() << w->getPos();
-				}
-				llvm::outs() << "\n";
 			}
-
 		}
 	}
+
+	hbClocks = updatedHbClocks;
 }
 
 bool HBCalculator::isViewStrictlyGreater(View a, View b) {
@@ -249,40 +229,23 @@ bool HBCalculator::isViewStrictlyGreater(View a, View b) {
     return true;
 }
 
-void HBCalculator::updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent) {
-	if (&events == nullptr) {
-        std::set<EventLabel*> newSet;
-        events = newSet;
-    }
+void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(newHbClock.begin(), newHbClock.end());
 
-	for (auto it = events.begin(); it != events.end();) {
-        if (!(hbClocks[hbEvent] <= hbClocks[*it])) {
-            //it = events.erase(it);
-			++it;
-        } else {
-            ++it;
-        }
-    }
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& a, const auto& b) { 
+        return !(b.second <= a.second);
+    });
 
-	events.insert(hbEvent);
-}
+	for (auto pair : sortedHbClocks) {
+		if (start == pair.first) continue;
+		if (isViewStrictlyGreater(newHbClock[start], pair.second)) {
+			newHbClock[pair.first] = mergeViews(newView, pair.second);
+			llvm::outs() << pair.first->getPos() << " " << newHbClock[pair.first] << "\n";
+		}
+	}
 
-EventLabel* HBCalculator::getMaximalHBEvent(std::set<EventLabel*> &events, EventLabel* hbEvent) {
-	EventLabel* maximalEvent = nullptr;
-
-    for (auto* event : events) {
-        if (hbClocks[event] <= hbClocks[hbEvent]) {
-            if (!maximalEvent || hbClocks[maximalEvent] <= hbClocks[event]) {
-                maximalEvent = event;
-            }
-        }
-    }
-
-    return maximalEvent;
-}
-
-void HBCalculator::addFRtoHB(WriteLabel* labOut, WriteLabel* labIn) {
-
+	newHbClock[start] = mergeViews(newView, newHbClock[start]);
 }
 
 void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {

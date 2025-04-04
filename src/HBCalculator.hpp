@@ -50,8 +50,8 @@ private:
 	void calcMO();
 
 	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
-	void updateSet(std::set<EventLabel*> &events, EventLabel* hbEvent);
-	EventLabel* getMaximalHBEvent(std::set<EventLabel*> &events, EventLabel* hbEvent);
+	void updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClocks, EventLabel* start, View newView);
+
 	View mergeViews(const View a, const View b);
 	bool isViewStrictlyGreater(const View a, const View b);
 
