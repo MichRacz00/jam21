@@ -22,7 +22,10 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		WriteLabel* previous = nullptr;
 		for (auto lab : pair.second) {
 			if (previous != nullptr) {
-				checkMoCoherence(previous, lab);
+				auto consistent = checkMoCoherence(previous, lab);
+				if (!consistent) {
+					return Calculator::CalculationResult(false, false);
+				}
 			}
 			previous = lab;
 		}
@@ -118,8 +121,11 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		// Memory access, advance VC by at least one from last access to this location
 		// in this thread (po-loc)
 		if (memAccessLab) {
+			auto const currentView = hbClocks[previousLabels[0]];
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccessView);
-			hbClocks[previousLabels[0]][tid] += 1;
+			if (currentView <= previousAccessView) {
+				hbClocks[previousLabels[0]][tid] += 1;
+			}
 		}
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
@@ -207,7 +213,7 @@ void HBCalculator::calcFR() {
 					auto previousWrite = *it;
 					if (previousWrite == writeAccess) { ++it; continue; }
 
-					if (isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[writeAccess])) {
+					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 						for (auto r : previousWrite->getReadersList()) {
 							llvm::outs() << r << " -fr-> " << writeAccess->getPos() << "\n";
 							updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[g.getEventLabel(r)]);
@@ -252,7 +258,7 @@ void HBCalculator::calcMO() {
 					auto previousWrite = *it;
 					if (previousWrite == writeAccess) { ++it; continue; }
 
-					if (isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[writeAccess])) {
+					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 						llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 						// Erase events with View that is in HB of the current write access
 						mo[addr].push_back(writeAccess);
@@ -287,14 +293,17 @@ bool HBCalculator::checkMoCoherence(WriteLabel* start, WriteLabel* end) {
 
 bool HBCalculator::isViewStrictlyGreater(View a, View b) {
 	int size = std::max(a.size(), b.size());
+	bool strictlyGreaterFound = false;
 
 	for (int i = 0; i < size; i ++) {
-        if (b[i] < a[i]) {
-			return false;
+        if (a[i] < b[i]) {
+			return false; // a is not greater at this index
+		} else if (a[i] > b[i]) {
+			strictlyGreaterFound = true;
 		}
     }
 
-    return true;
+    return strictlyGreaterFound;
 }
 
 void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
@@ -307,7 +316,8 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
 
 	for (auto pair : sortedHbClocks) {
 		if (start == pair.first) continue;
-		if (isViewStrictlyGreater(newHbClock[start], pair.second)) {
+		if (isViewStrictlyGreater(hbClocks[start], pair.second)) {
+			llvm::outs() << start->getPos() << pair.first->getPos() << "\n";
 			newHbClock[pair.first] = mergeViews(newView, pair.second);
 		}
 	}
