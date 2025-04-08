@@ -96,17 +96,18 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 
 		if (previousLabels.size() >= 2) {
 			// Copy previous VC to this event
-			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[previousLabels[1]]);
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[firstThreadEvent]);
 		}
 
 		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
 		if (labRead) {
 			// Read event, get VC from write
 			auto labRf = g.getEventLabel(labRead->getRf());
+			auto rfTid = labRf->getThread();
 
 			if (hbClocks[labRf].empty()) {
 				// Write VC not yet calculated, calculate it and return
-				auto rfTid = labRf->getThread();
+				
 				llvm::outs() << " --- to thread " << rfTid << " --- \n";
 				calcHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
 				llvm::outs() << " --- return --- \n";
@@ -114,6 +115,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 
 			// Merge read and write VCs related by RF
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
+			hbClocks[previousLabels[0]][rfTid] += 1;
 		}
 
 		calcIntraThreadHB(lab.get(), previousLabels);
@@ -307,6 +309,7 @@ bool HBCalculator::isViewStrictlyGreater(View a, View b) {
 }
 
 void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
+	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(newHbClock.begin(), newHbClock.end());
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
@@ -315,14 +318,9 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
     });
 
 	for (auto pair : sortedHbClocks) {
-		if (start == pair.first) continue;
-		if (isViewStrictlyGreater(hbClocks[start], pair.second)) {
-			llvm::outs() << start->getPos() << pair.first->getPos() << "\n";
-			newHbClock[pair.first] = mergeViews(newView, pair.second);
-		}
+		if (!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first) continue;
+		newHbClock[pair.first] = mergeViews(newView, newHbClock[pair.first]);
 	}
-
-	newHbClock[start] = mergeViews(newView, newHbClock[start]);
 }
 
 void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
