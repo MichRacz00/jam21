@@ -197,8 +197,21 @@ void HBCalculator::calcFR() {
 	auto updatedHbClocks = hbClocks;
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
-    [](const auto& a, const auto& b) { 
-        return !(b.second <= a.second);
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+				return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
     });
 
 	for (auto pair : sortedHbClocks) {
@@ -240,8 +253,21 @@ void HBCalculator::calcMO() {
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
-    [](const auto& a, const auto& b) { 
-        return !(b.second <= a.second);
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+                return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
     });
 
 	for (auto pair : sortedHbClocks) {
@@ -313,8 +339,21 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(newHbClock.begin(), newHbClock.end());
 
 	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
-    [](const auto& a, const auto& b) { 
-        return !(b.second <= a.second);
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+				return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
     });
 
 	for (auto pair : sortedHbClocks) {
