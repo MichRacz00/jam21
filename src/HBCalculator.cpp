@@ -13,11 +13,12 @@ void HBCalculator::initCalc()
 }
 
 Calculator::CalculationResult HBCalculator::doCalc() {
+	resetViews();
+
 	calcHB();
 	calcFR();
 	calcMO();
 
-	
 	for (auto pair : mo) {
 		WriteLabel* previous = nullptr;
 		for (auto lab : pair.second) {
@@ -36,8 +37,6 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	for (auto h : hbClocks) {
 		//llvm::outs() << h.first->getPos() << " " << h.second << "\n";
 	}
-
-	resetViews();
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -82,12 +81,12 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		if (previousLabels.size() > 5) previousLabels.pop_back();
 
 		// Remember last HB view to this location
-		View previousAccessView;
-		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		if (memAccessLab) {
-			previousAccessView = previousAccess[memAccessLab->getAddr()];
-			previousAccess[memAccessLab->getAddr()] = hbClocks[memAccessLab];
-		}
+		//View previousAccessView;
+		//auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		//if (memAccessLab) {
+			//previousAccessView = hbClocks[previousAccess[memAccessLab->getAddr()]];
+			//previousAccess[memAccessLab->getAddr()] = memAccessLab;
+		//}
 
 		if (!hbClocks[previousLabels[0]].empty()) {
 			// VC is already calculated for this event, skip
@@ -97,6 +96,20 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		if (previousLabels.size() >= 2) {
 			// Copy previous VC to this event
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[firstThreadEvent]);
+		}
+
+		// Memory access, advance VC by at least one from last access to this location
+		// in this thread (po-loc)
+		
+		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (memAccessLab) {
+			if (previousAccess.find(memAccessLab->getAddr()) != previousAccess.end()) {
+				hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccess[memAccessLab->getAddr()]);
+				if (hbClocks[previousLabels[0]] <= previousAccess[memAccessLab->getAddr()]) {
+					hbClocks[previousLabels[0]][tid] += 1;
+				}
+			}
+			previousAccess[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
 		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
@@ -119,16 +132,6 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		}
 
 		calcIntraThreadHB(lab.get(), previousLabels);
-
-		// Memory access, advance VC by at least one from last access to this location
-		// in this thread (po-loc)
-		if (memAccessLab) {
-			auto const currentView = hbClocks[previousLabels[0]];
-			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccessView);
-			if (currentView <= previousAccessView) {
-				hbClocks[previousLabels[0]][tid] += 1;
-			}
-		}
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
 		if (previousLabels[0] == halt) {
@@ -271,7 +274,6 @@ void HBCalculator::calcMO() {
     });
 
 	for (auto pair : sortedHbClocks) {
-		llvm::outs() << pair.first->getPos() << " " << pair.second << "\n";
     	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
 
 		if (writeAccess) {
@@ -440,6 +442,7 @@ bool HBCalculator::isFence(EventLabel *lab) {
 
 void HBCalculator::resetViews() {
 	hbClocks.clear();
+	moClocks.clear();
 	mo.clear();
 }
 
