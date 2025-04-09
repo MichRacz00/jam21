@@ -9,7 +9,7 @@ litmus,LB+dep,lb+dep0.c,3,,0.03s
 litmus,LB+dep,lb+dep1.c,3,,0.03s
 litmus,2+2W+3sc+rel2,2+2w+3sc+rel20.c,4,,0.03s
 litmus,MPU+relf+acq,mpu+relf+acq0.c,6,,0.03s
-litmus,LB+ctrl+rel,lb+ctrl+rel0.c,3,,0.03s
+litmus,LB+ctrl+rel,lb+ctrl+rel0.c,3,,0.04s
 litmus,psc-sbhbsb,psc-sbhbsb0.c,1,1,0.03s
 litmus,MPU+rel+acqf,mpu+rel+acqf0.c,6,,0.03s
 litmus,isa2,isa20.c,7,,0.03s
@@ -25,7 +25,7 @@ litmus,2CoWR,2cowr4.c,4,,0.03s
 litmus,WWmerge2,WWmerge20.c,8,,0.03s
 litmus,MPU+rel+acq,mpu+rel+acq0.c,6,,0.03s
 litmus,WRC+dep,wrc+dep0.c,8,,0.03s
-litmus,MPU2+rels+acqf,mpu2+rels+acqf0.c,35,,0.03s
+litmus,MPU2+rels+acqf,mpu2+rels+acqf0.c,35,,0.04s
 litmus,relacq-B-cumul,relacq-B-cumul0.c,8,,0.03s
 litmus,MP+rels+acqf,mp+rels+acqf0.c,3,,0.03s
 litmus,po-loc,po-loc0.c,3,,0.03s
@@ -37,7 +37,7 @@ litmus,RWC+syncs,rwc+syncs0.c,7,,0.03s
 litmus,MPU+rels+acq,mpu+rels+acq0.c,12,,0.03s
 litmus,wcii,wcii0.c,24,,0.03s
 litmus,LB2,lb0.c,3,,0.03s
-litmus,CoRR1,corr10.c,36,,0.04s
+litmus,CoRR1,corr10.c,36,,0.03s
 litmus,CoRR1,corr10r.c,36,,0.03s
 litmus,CoRR1,corr11.c,36,,0.04s
 litmus,CoRR1,corr12.c,36,,0.04s
@@ -47,7 +47,7 @@ litmus,MP+incMP,MP+incMP0.c,7,,0.03s
 litmus,MP,mp0.c,3,,0.03s
 litmus,MP,mp1.c,3,,0.03s
 litmus,MP+relf+acqf,mp+relf+acqf0.c,2,,0.03s
-litmus,SB+scfs,sb+scfs0.c,3,,0.04s
+litmus,SB+scfs,sb+scfs0.c,3,,0.03s
 litmus,S+rels+acqf,s+rels+acqf0.c,3,,0.03s
 litmus,MPU2+rel+acqf,mpu2+rel+acqf0.c,14,,0.03s
 litmus,TC1,tc10.c,3,,0.03s
@@ -66,7 +66,7 @@ litmus,rii,rii0.c,3,,0.03s
 litmus,MPU+relf+acqf,expected.mo.in,3,,0.02s
 litmus,MPU+relf+acqf,expected.weakra.in,3,,0.02s
 litmus,MPU+relf+acqf,mpu+relf+acqf0.c,6,,0.03s
-litmus,small1,small10.c,8,,0.03s
+litmus,small1,small10.c,8,,0.04s
 litmus,small1,small10r.c,8,,0.03s
 litmus,small1,small11.c,8,,0.03s
 litmus,small1,small12.c,8,,0.03s
@@ -93,7 +93,7 @@ litmus,peterZ,peterZ0.c,8,,0.03s
 litmus,viktor-relseq,viktor-relseq0.c,180,,0.08s
 litmus,SB+3sc+acq,sb+3sc+acq0.c,4,,0.03s
 litmus,2+2W+2sc+scf,2+2w+2sc+scf0.c,4,,0.03s
-litmus,inc+inc+RR+W+RR,inc+inc+rr+w+rr0.c,600,,0.23s
+litmus,inc+inc+RR+W+RR,inc+inc+rr+w+rr0.c,600,,0.24s
 litmus,2+2W+scfs,2+2w+scfs0.c,4,,0.03s
 litmus,LB+addr,lb+addr0.c,3,,0.03s
 litmus,CoRW,corw0.c,3,,0.03s
@@ -114,7 +114,7 @@ litmus,fr+w+w+w+reads,fr+w+w+w+reads0.c,210,,0.05s
 litmus,psc-ar,psc-ar0.c,0,2,0.03s
 litmus,SB,sb0.c,4,,0.03s
 litmus,SB,sb1.c,4,,0.03s
-litmus,CoRR2,corr20.c,72,,0.03s
+litmus,CoRR2,corr20.c,72,,0.04s
 litmus,CoRR2,corr20r.c,72,,0.04s
 litmus,CoRR2,corr21.c,72,,0.04s
 litmus,CoRR2,corr22.c,72,,0.04s

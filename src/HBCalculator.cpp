@@ -213,12 +213,10 @@ void HBCalculator::calcFR() {
 			auto const addr = writeAccess->getAddr();
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
-				//llvm::outs() << writeAccess->getPos() << " - ";
 				for (auto r : initReadersList[addr]) {
 					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
 					updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
 				}
-				//llvm::outs() << "\n";
 	
 			} else {
 				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
@@ -287,7 +285,6 @@ void HBCalculator::calcMO() {
 
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
-			llvm::outs() << "Analyzing mo for VC " << writeAccess->getPos() << hbClocks[writeAccess] << "\n";
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
 				previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
