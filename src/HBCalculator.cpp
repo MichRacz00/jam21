@@ -66,7 +66,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	// has started
 	auto prevThreadClock = hbClocks[threadCreateEvent];
 	prevThreadClock[tid] += 1;
-	hbClocks[firstThreadEvent] = View(prevThreadClock);
+	auto baseView = View(prevThreadClock);
 
 	llvm::outs() << " --- " << tid << " --- \n";
 
@@ -83,7 +83,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 
 		if (previousLabels.size() >= 2) {
 			// Copy previous VC to this event
-			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[firstThreadEvent]);
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], baseView);
 		}
 
 		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
@@ -121,6 +121,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		calcIntraThreadHB(lab.get(), previousLabels);
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
+		baseView = hbClocks[previousLabels[0]];
 		if (previousLabels[0] == halt) {
 			// Reached the last event specified, end calculations
 			llvm::outs() << " --- halt --- \n";
@@ -214,8 +215,14 @@ void HBCalculator::calcFR() {
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
 				for (auto r : initReadersList[addr]) {
+					
+					if (isViewStrictlyGreater(updatedHbClocks[r], updatedHbClocks[writeAccess])) {
+						llvm::outs() << updatedHbClocks[r] << updatedHbClocks[writeAccess] << "\n";
+						llvm::outs() << "Incorrect fr edge\n";
+					} else {
+						updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
+					}
 					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
-					updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
 				}
 	
 			} else {
