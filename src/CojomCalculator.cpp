@@ -410,7 +410,9 @@ Calculator::GlobalRelation CojomCalculator::calcCowr(GlobalRelation vo) {
 				// The final event is not a write
 				// This should not be triggered unless
 				// we have reached the initalizer event
-				tryAddEdge(elem, finalWriteElem, &cowr); //coment out to fail Szymanski
+				if (initialLab->getAddr() == middleReadLab->getAddr()) {
+					tryAddEdge(elem, finalWriteElem, &cowr); //coment out to fail Szymanski
+				}
 				continue;
 			}
 
@@ -508,8 +510,11 @@ Calculator::GlobalRelation CojomCalculator::calcCorr() {
 		if (initWrite == finalWrite) continue;
 
 		if (initWrite.isInitializer() || finalWrite.isInitializer()) {
-			// Either of the writes is an initializer, then we allways add corr edge
-			tryAddEdge(initWrite, finalWrite, &corr);
+			// Either of the writes is an initializer, then add corr edge if both reads
+			// read from the same address
+			if (initReadLab->getAddr() == finalReadLab->getAddr()) {
+				tryAddEdge(initWrite, finalWrite, &corr);
+			}
 		} else {
 			// They are both not initializers
 			if (initWriteLab->getAddr() == finalWriteLab->getAddr()) {

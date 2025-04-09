@@ -25,17 +25,13 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 			if (previous != nullptr) {
 				auto consistent = checkMoCoherence(previous, lab);
 				if (!consistent) {
+					llvm::outs() << getGraph();
+					llvm::outs() << "Incosnistent!";
 					return Calculator::CalculationResult(false, false);
 				}
 			}
 			previous = lab;
 		}
-	}
-	
-
-	llvm::outs() << "\n";
-	for (auto h : hbClocks) {
-		//llvm::outs() << h.first->getPos() << " " << h.second << "\n";
 	}
 
 	return Calculator::CalculationResult(false, true);
@@ -80,14 +76,6 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		previousLabels.push_front(lab.get());
 		if (previousLabels.size() > 5) previousLabels.pop_back();
 
-		// Remember last HB view to this location
-		//View previousAccessView;
-		//auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		//if (memAccessLab) {
-			//previousAccessView = hbClocks[previousAccess[memAccessLab->getAddr()]];
-			//previousAccess[memAccessLab->getAddr()] = memAccessLab;
-		//}
-
 		if (!hbClocks[previousLabels[0]].empty()) {
 			// VC is already calculated for this event, skip
 			continue;
@@ -96,20 +84,6 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		if (previousLabels.size() >= 2) {
 			// Copy previous VC to this event
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[firstThreadEvent]);
-		}
-
-		// Memory access, advance VC by at least one from last access to this location
-		// in this thread (po-loc)
-		
-		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		if (memAccessLab) {
-			if (previousAccess.find(memAccessLab->getAddr()) != previousAccess.end()) {
-				hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccess[memAccessLab->getAddr()]);
-				if (hbClocks[previousLabels[0]] <= previousAccess[memAccessLab->getAddr()]) {
-					hbClocks[previousLabels[0]][tid] += 1;
-				}
-			}
-			previousAccess[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
 		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
@@ -129,6 +103,19 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 			// Merge read and write VCs related by RF
 			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
 			hbClocks[previousLabels[0]][rfTid] += 1;
+		}
+
+		// Memory access, advance VC by at least one from last access to this location
+		// in this thread (po-loc)
+		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (memAccessLab) {
+			if (previousAccess.find(memAccessLab->getAddr()) != previousAccess.end()) {
+				hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccess[memAccessLab->getAddr()]);
+				if (hbClocks[previousLabels[0]] <= previousAccess[memAccessLab->getAddr()]) {
+					hbClocks[previousLabels[0]][tid] += 1;
+				}
+			}
+			previousAccess[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
 		calcIntraThreadHB(lab.get(), previousLabels);
@@ -217,6 +204,8 @@ void HBCalculator::calcFR() {
         return false; // equal views
     });
 
+	auto initReadersList = getInitReadersList();
+
 	for (auto pair : sortedHbClocks) {
     	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
 
@@ -224,7 +213,12 @@ void HBCalculator::calcFR() {
 			auto const addr = writeAccess->getAddr();
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
-				previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
+				//llvm::outs() << writeAccess->getPos() << " - ";
+				for (auto r : initReadersList[addr]) {
+					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
+					updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
+				}
+				//llvm::outs() << "\n";
 	
 			} else {
 				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
@@ -242,13 +236,28 @@ void HBCalculator::calcFR() {
 						++it;
 					}
 				}
-				
-				previousWrites[addr].insert(writeAccess);
 			}
+
+			previousWrites[addr].insert(writeAccess);
 		}
 	}
 
 	hbClocks = updatedHbClocks;
+}
+
+std::unordered_map<SAddr, std::set<EventLabel*>> HBCalculator::getInitReadersList() {
+	auto &g = getGraph();
+	std::unordered_map<SAddr, std::set<EventLabel*>> initReadersList;
+
+	for (auto lab : labels(g)) {
+		auto readLabel = dynamic_cast<ReadLabel*>(lab);
+		if (!readLabel || !readLabel->getRf().isInitializer()) continue;
+
+		auto const addr = readLabel->getAddr();
+		initReadersList[addr].insert(readLabel);
+	}
+
+	return initReadersList;
 }
 
 void HBCalculator::calcMO() {
@@ -278,6 +287,7 @@ void HBCalculator::calcMO() {
 
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
+			llvm::outs() << "Analyzing mo for VC " << writeAccess->getPos() << hbClocks[writeAccess] << "\n";
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
 				previousWrites[addr] = std::set<WriteLabel*> {writeAccess};

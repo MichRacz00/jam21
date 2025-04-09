@@ -55,6 +55,7 @@ private:
 
 	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
 	void updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClocks, EventLabel* start, View newView);
+	std::unordered_map<SAddr, std::set<EventLabel*>> getInitReadersList();
 
 	View mergeViews(const View a, const View b);
 	bool isViewStrictlyGreater(const View a, const View b);
