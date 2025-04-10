@@ -344,6 +344,7 @@ Calculator::GlobalRelation CojomCalculator::calcRfRelation() {
  * Given VO calculates cojom relation
  */
 Calculator::GlobalRelation CojomCalculator::calcCojom(Calculator::GlobalRelation vo) {
+	llvm::outs() << calcCowr(vo);
 	Calculator::GlobalRelation cojom = merge({calcCoww(vo), calcCowr(vo), calcCorw(vo), calcCorr()});
 	return cojom;
 }

@@ -15,17 +15,20 @@ void HBCalculator::initCalc()
 Calculator::CalculationResult HBCalculator::doCalc() {
 	resetViews();
 
-	calcHB();
-	calcFR();
-	calcMO();
-	calcCORR();
-
 	std::vector<Event> allLabels;
 	for (auto lab : labels(getGraph())) {
 		allLabels.push_back(lab->getPos());
 	}
 
-	Calculator::GlobalRelation cojom(allLabels);
+	Calculator::GlobalRelation a(allLabels);
+	cojom = a;
+
+	calcHB();
+	calcFR();
+	calcMO();
+	calcCORR();
+
+	/*
 
 	for (auto pair : mo) {
 		WriteLabel* previous = nullptr;
@@ -48,6 +51,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 			previous = lab;
 		}
 	}
+		*/
 
 	llvm::outs() << cojom;
 
@@ -71,7 +75,11 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		}
 	}*/
 
-	return Calculator::CalculationResult(false, true);
+	llvm::outs() << getGraph();
+
+	if (!cojom.isIrreflexive()) llvm::outs() << "Inconsistent!\n";
+
+	return Calculator::CalculationResult(false, cojom.isIrreflexive());
 }
 
 void HBCalculator::removeAfter(const VectorClock &preds)
@@ -345,6 +353,7 @@ void HBCalculator::calcMO() {
 					llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 					// Erase events with View that is in HB of the current write access
 					mo[addr].push_back(writeAccess);
+					cojom.addEdge(previousWrite->getPos(), writeAccess->getPos());
 
 					//it = previousWrites[addr].erase(it);
 					++it;
@@ -401,6 +410,7 @@ void HBCalculator::calcCORR() {
 					// Erase events with View that is in HB of the current write access
 					//it = previousWrites[addr].erase(it);
 					corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
+					cojom.addEdge(previousRead->getRf(), readAccess->getRf());
 				}
 
 				++it;

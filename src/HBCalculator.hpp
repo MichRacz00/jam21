@@ -64,6 +64,8 @@ private:
 	bool isFence(EventLabel *lab);
 
 	void resetViews();
+
+	Calculator::GlobalRelation cojom;
 };
 
 #endif /* __VO_CALCULATOR_HPP__ */
