@@ -24,6 +24,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		for (auto lab : pair.second) {
 			if (previous != nullptr) {
 				auto consistent = checkMoCoherence(previous, lab);
+				llvm::outs() << "Checking mo consistence " << previous->getPos() << " -mo?-> " << lab->getPos() << "\n";
 				if (!consistent) {
 					llvm::outs() << getGraph();
 					llvm::outs() << "Incosnistent! on " << previous->getPos() << lab->getPos() << "\n";
@@ -292,9 +293,15 @@ void HBCalculator::calcMO() {
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
 
-			if (previousWrites.find(addr) == previousWrites.end()) {
-				previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
-				mo[addr] = std::vector<WriteLabel*> {writeAccess};
+			llvm::outs() << "mo for " << addr << ": ";
+			for (auto m : mo[addr]) {
+				llvm::outs() << m->getPos();
+			}
+			llvm::outs() << "\n";
+
+			if (false/*previousWrites.find(addr) == previousWrites.end()*/) {
+				//previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
+				//mo[addr] = std::vector<WriteLabel*> {writeAccess};
 	
 			} else {
 				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
@@ -304,6 +311,12 @@ void HBCalculator::calcMO() {
 					llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
 
 					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
+
+						if (previousWrites.find(addr) == previousWrites.end()) {
+							previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
+							mo[addr] = std::vector<WriteLabel*> {writeAccess};
+						}
+
 						llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 						// Erase events with View that is in HB of the current write access
 						mo[addr].push_back(writeAccess);

@@ -1,5 +1,5 @@
-litmus,Z6.U,Z6.U0.c,16,,0.03s
-litmus,2+2W+4sc,2+2w+4sc0.c,4,,0.03s
+litmus,Z6.U,Z6.U0.c,23,,0.03s
+litmus,2+2W+4sc,2+2w+4sc0.c,4,,0.04s
 litmus,SB+rfis,SB+rfis0.c,4,,0.03s
 litmus,inc2w,inc2w0.c,6,,0.03s
 litmus,MPU2+relf+acq,mpu2+relf+acq0.c,14,,0.03s
@@ -90,10 +90,10 @@ litmus,CoRR0,corr01.c,4,,0.03s
 litmus,CoRR0,corr02.c,4,,0.03s
 litmus,CoRR0,corr0r.c,4,,0.03s
 litmus,peterZ,peterZ0.c,8,,0.03s
-litmus,viktor-relseq,viktor-relseq0.c,180,,0.05s
+litmus,viktor-relseq,viktor-relseq0.c,180,,0.04s
 litmus,SB+3sc+acq,sb+3sc+acq0.c,4,,0.03s
 litmus,2+2W+2sc+scf,2+2w+2sc+scf0.c,4,,0.03s
-litmus,inc+inc+RR+W+RR,inc+inc+rr+w+rr0.c,520,,0.07s
+litmus,inc+inc+RR+W+RR,inc+inc+rr+w+rr0.c,600,,0.07s
 litmus,2+2W+scfs,2+2w+scfs0.c,4,,0.03s
 litmus,LB+addr,lb+addr0.c,3,,0.03s
 litmus,CoRW,corw0.c,3,,0.03s
@@ -132,7 +132,7 @@ litmus,WWmerge1,WWmerge10.c,18,,0.03s
 litmus,CoRR,corr0.c,6,,0.03s
 litmus,CoRR,corr1.c,6,,0.03s
 litmus,riwi,riwi0.c,3,,0.03s
-litmus,MPU+rels+acqf,mpu+rels+acqf0.c,12,,0.03s
+litmus,MPU+rels+acqf,mpu+rels+acqf0.c,12,,0.04s
 litmus,rfi-preserved,rfi-preserved0.c,3,,0.03s
 litmus,LB+fr-fr-data+data,LB+fr-fr-data+data0.c,18,,0.03s
 litmus,rinc+wr,rinc+wr0.c,3,,0.03s
@@ -141,14 +141,14 @@ litmus,small0,small00r.c,9,,0.03s
 litmus,small0,small01.c,9,,0.03s
 litmus,small0,small02.c,9,,0.03s
 litmus,LB+incMPs,LB+incMPs0.c,15,,0.03s
-litmus,WWR+2WR,wwr+2wr0.c,1,10,0.03s
+litmus,WWR+2WR,wwr+2wr0.c,2,10,0.03s
 litmus,LB3,lb30.c,7,,0.03s
 litmus,detour,detour0.c,9,,0.03s
 litmus,rel-pporf,rel-pporf0.c,3,,0.03s
 litmus,SB+4sc,sb+4sc0.c,4,,0.03s
 litmus,LB+acq,lb+acq0.c,3,,0.03s
 litmus,SB+3sc+rel,sb+3sc+rel0.c,4,,0.03s
-litmus,ori,ori0.c,4,,0.03s
+litmus,ori,ori0.c,5,,0.03s
 litmus,MP+rel+acq,mp+rel+acq0.c,2,,0.03s
 litmus,MP+rel+acq,mp+rel+acq1.c,2,,0.03s
 litmus,SB+assert,SB+assert0.c,3,1,0.03s
