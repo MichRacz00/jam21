@@ -50,7 +50,7 @@ private:
 	void calcHB();
 	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
-	void calcFR();
+	bool calcFR();
 	void calcMO();
 	void calcCORR();
 	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);

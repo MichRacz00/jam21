@@ -24,7 +24,9 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	cojom = a;
 
 	calcHB();
-	calcFR();
+	llvm::outs() << getGraph();
+	bool correctFR = calcFR();
+	if (!correctFR) return Calculator::CalculationResult(false, false);
 	calcMO();
 	calcCORR();
 
@@ -224,7 +226,7 @@ View HBCalculator::mergeViews(const View a, const View b) {
 	return mergedView;
 }
 
-void HBCalculator::calcFR() {
+bool HBCalculator::calcFR() {
 	auto &g = getGraph();
 
 	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
@@ -260,13 +262,17 @@ void HBCalculator::calcFR() {
 			if (previousWrites.find(addr) == previousWrites.end()) {
 				for (auto r : initReadersList[addr]) {
 					
-					if (isViewStrictlyGreater(updatedHbClocks[r], updatedHbClocks[writeAccess])) {
+					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
+
+					int writeTid = writeAccess->getThread();
+
+					if (updatedHbClocks[r][writeTid] > updatedHbClocks[writeAccess][writeTid]) {
 						llvm::outs() << updatedHbClocks[r] << updatedHbClocks[writeAccess] << "\n";
 						llvm::outs() << "Incorrect fr edge\n";
+						return false;
 					} else {
 						updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
 					}
-					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
 				}
 	
 			} else {
@@ -292,6 +298,7 @@ void HBCalculator::calcFR() {
 	}
 
 	hbClocks = updatedHbClocks;
+	return true;
 }
 
 std::unordered_map<SAddr, std::set<EventLabel*>> HBCalculator::getInitReadersList() {
