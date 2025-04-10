@@ -299,36 +299,30 @@ void HBCalculator::calcMO() {
 			}
 			llvm::outs() << "\n";
 
-			if (false/*previousWrites.find(addr) == previousWrites.end()*/) {
-				//previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
-				//mo[addr] = std::vector<WriteLabel*> {writeAccess};
-	
-			} else {
-				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
-					auto previousWrite = *it;
-					if (previousWrite == writeAccess) { ++it; continue; }
-					
-					llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
-
-					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
-
-						if (previousWrites.find(addr) == previousWrites.end()) {
-							previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
-							mo[addr] = std::vector<WriteLabel*> {writeAccess};
-						}
-
-						llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
-						// Erase events with View that is in HB of the current write access
-						mo[addr].push_back(writeAccess);
-						//it = previousWrites[addr].erase(it);
-						++it;
-					} else {
-						++it;
-					}
-				}
+			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
+				auto previousWrite = *it;
+				if (previousWrite == writeAccess) { ++it; continue; }
 				
-				previousWrites[addr].insert(writeAccess);
+				llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
+
+				if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
+
+					if (previousWrites.find(addr) == previousWrites.end()) {
+						previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
+						mo[addr] = std::vector<WriteLabel*> {writeAccess};
+					}
+
+					llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
+					// Erase events with View that is in HB of the current write access
+					mo[addr].push_back(writeAccess);
+					//it = previousWrites[addr].erase(it);
+					++it;
+				} else {
+					++it;
+				}
 			}
+			
+			previousWrites[addr].insert(writeAccess);
 
 		}
 	}
