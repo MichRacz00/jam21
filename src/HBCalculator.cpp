@@ -121,7 +121,6 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		calcIntraThreadHB(lab.get(), previousLabels);
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
-		baseView = hbClocks[previousLabels[0]];
 		if (previousLabels[0] == halt) {
 			// Reached the last event specified, end calculations
 			llvm::outs() << " --- halt --- \n";
@@ -301,12 +300,15 @@ void HBCalculator::calcMO() {
 				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 					auto previousWrite = *it;
 					if (previousWrite == writeAccess) { ++it; continue; }
+					
+					llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
 
 					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 						llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 						// Erase events with View that is in HB of the current write access
 						mo[addr].push_back(writeAccess);
-						it = previousWrites[addr].erase(it);
+						//it = previousWrites[addr].erase(it);
+						++it;
 					} else {
 						++it;
 					}
@@ -376,6 +378,7 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
 		if (!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first) continue;
 		newHbClock[pair.first] = mergeViews(newView, newHbClock[pair.first]);
 	}
+	llvm::outs() << "\n";
 }
 
 void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
