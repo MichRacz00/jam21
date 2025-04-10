@@ -45,12 +45,14 @@ private:
 	std::unordered_map<EventLabel*, View> hbClocks;
 	std::unordered_map<EventLabel*, View> moClocks;
 	std::unordered_map<SAddr, std::vector<WriteLabel*>> mo;
+	std::unordered_map<SAddr, std::vector<EventLabel*>> corr;
 
 	void calcHB();
 	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
 	void calcFR();
 	void calcMO();
+	void calcCORR();
 	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
 	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
@@ -59,33 +61,9 @@ private:
 
 	View mergeViews(const View a, const View b);
 	bool isViewStrictlyGreater(const View a, const View b);
-
-	std::unordered_map<std::string, std::unordered_map<SAddr::Width, int>> raAccessView;
-
-	std::unordered_map<std::string, std::unordered_map<int, int>> currentView;
-	std::unordered_map<std::string, std::unordered_map<int, int>> releaseView;
-	std::unordered_map<std::string, std::unordered_map<int, int>> acquireView;
-
-	
-	void addPoloc(ExecutionGraph::Thread &eventLabels, Calculator::GlobalRelation &hb);
-	Calculator::GlobalRelation mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
-	void addHBfromInit(Calculator::GlobalRelation &hb);
-	void addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo);
-
 	bool isFence(EventLabel *lab);
 
 	void resetViews();
-
-	void calcLabelViews(EventLabel *lab);
-	void advanceCurrentView(EventLabel *lab);
-	void calcWriteViews(WriteLabel *lab);
-	void calcReadViews(ReadLabel *lab);
-	void calcFenceViews(FenceLabel *lab);
-
-	std::string makeKey(const EventLabel *lab);
-
-	template <typename K, typename V>
-	void printView(const std::unordered_map<K, V> &v);
 };
 
 #endif /* __VO_CALCULATOR_HPP__ */

@@ -18,6 +18,42 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	calcHB();
 	calcFR();
 	calcMO();
+	calcCORR();
+
+	std::vector<Event> allLabels;
+	for (auto lab : labels(getGraph())) {
+		allLabels.push_back(lab->getPos());
+	}
+
+	Calculator::GlobalRelation cojom(allLabels);
+
+	for (auto pair : mo) {
+		WriteLabel* previous = nullptr;
+		for (auto lab : pair.second) {
+			if (previous != nullptr) {
+				llvm::outs() << "Adding mo edge " << previous->getPos() << " -mo-> " << lab->getPos() << "\n";
+				cojom.addEdge(previous->getPos(), lab->getPos());
+			}
+			previous = lab;
+		}
+	}
+
+	for (auto pair : corr) {
+		EventLabel* previous = nullptr;
+		for (auto lab : pair.second) {
+			if (previous != nullptr) {
+				llvm::outs() << "Adding corr edge " << previous->getPos() << " -mo-> " << lab->getPos() << "\n";
+				cojom.addEdge(previous->getPos(), lab->getPos());
+			}
+			previous = lab;
+		}
+	}
+
+	llvm::outs() << cojom;
+
+	cojom.transClosure();
+
+	/*
 
 	for (auto pair : mo) {
 		WriteLabel* previous = nullptr;
@@ -33,7 +69,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 			}
 			previous = lab;
 		}
-	}
+	}*/
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -293,17 +329,11 @@ void HBCalculator::calcMO() {
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
 
-			llvm::outs() << "mo for " << addr << ": ";
-			for (auto m : mo[addr]) {
-				llvm::outs() << m->getPos();
-			}
-			llvm::outs() << "\n";
-
 			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 				auto previousWrite = *it;
 				if (previousWrite == writeAccess) { ++it; continue; }
 				
-				llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
+				//llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
 
 				if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 
@@ -315,6 +345,7 @@ void HBCalculator::calcMO() {
 					llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 					// Erase events with View that is in HB of the current write access
 					mo[addr].push_back(writeAccess);
+
 					//it = previousWrites[addr].erase(it);
 					++it;
 				} else {
@@ -323,7 +354,59 @@ void HBCalculator::calcMO() {
 			}
 			
 			previousWrites[addr].insert(writeAccess);
+		}
+	}
+}
 
+void HBCalculator::calcCORR() {
+	std::unordered_map<SAddr, std::set<ReadLabel*>> previousReads;
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
+	auto &g = getGraph();
+
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+                return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
+    });
+
+	for (auto pair : sortedHbClocks) {
+    	auto const readAccess = dynamic_cast<ReadLabel*>(pair.first);
+
+		if (readAccess) {
+			auto const addr = readAccess->getAddr();
+
+			for (auto it = previousReads[addr].begin(); it != previousReads[addr].end(); ) {
+				auto previousRead = *it;
+				if (previousRead->getRf() == readAccess->getRf()) { ++it; continue; }
+
+				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousRead])) {
+					if (corr.find(addr) == corr.end()) {
+						// Entry in corr for this addres does not exist yet
+						corr[addr] = std::vector<EventLabel*> {g.getEventLabel(previousRead->getRf())};
+					}
+
+					llvm::outs() << previousRead->getRf() << " -corr-> " << readAccess->getRf() << "\n";
+					// Erase events with View that is in HB of the current write access
+					//it = previousWrites[addr].erase(it);
+					corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
+				}
+
+				++it;
+			}
+
+			previousReads[addr].insert(readAccess);
 		}
 	}
 }
@@ -385,70 +468,6 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
 		if (!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first) continue;
 		newHbClock[pair.first] = mergeViews(newView, newHbClock[pair.first]);
 	}
-	llvm::outs() << "\n";
-}
-
-void HBCalculator::addHBfromMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
-	auto &g = getGraph();
-
-	for (auto const e : mo.getElems()) {
-		for (auto const adj : mo.getElems()) {
-			if (!mo(e, adj)) continue;
-			if (e == adj) continue;
-			
-			auto const lab = g.getEventLabel(e);
-
-			auto const labWrite = dynamic_cast<WriteLabel *>(lab);
-			auto const adjWrite = g.getWriteLabel(adj);
-
-			// WW coh
-			hb.addEdge(e, adj);
-
-			if (labWrite && adjWrite) {
-				// RR coh
-				for (auto labR : labWrite->getReadersList()) {
-					for (auto adjR : adjWrite->getReadersList()) {
-						if (labR != adjR) hb.addEdge(labR, adjR);
-					}
-				}
-			}
-
-			if (labWrite) {
-				// WR coh
-				for (auto r : labWrite->getReadersList()) {
-					hb.addEdge(r, adj);
-				}
-			}
-
-			if (adjWrite) {
-				// RW coh
-				for (auto r : adjWrite->getReadersList()) {
-					hb.addEdge(e, r);
-				}
-			}
-		}
-	}
-}
-
-void HBCalculator::addHBfromInit(Calculator::GlobalRelation &hb) {
-	for (auto const e : hb.getElems()) {
-		if (e.isInitializer()) continue;
-		hb.addEdge(e.getInitializer(), e);
-	}
-}
-
-Calculator::GlobalRelation HBCalculator::mergeHBandMO(Calculator::GlobalRelation &hb, Calculator::GlobalRelation &mo) {
-	auto &g = getGraph();
-
-	Calculator::GlobalRelation merged(hb.getElems());
-
-	for (auto const e : hb.getElems()) {
-		for (auto const adj : hb.getElems()) {
-			if (hb(e, adj) || mo(e, adj)) merged.addEdge(e, adj);
-		}
-	}
-
-	return merged;
 }
 
 bool HBCalculator::isFence(EventLabel *lab) {
@@ -468,212 +487,5 @@ void HBCalculator::resetViews() {
 	hbClocks.clear();
 	moClocks.clear();
 	mo.clear();
-}
-
-void HBCalculator::calcLabelViews(EventLabel *lab) {
-	const auto &g = getGraph();
- 
-	advanceCurrentView(lab);
-
-	switch (lab->getKind()) {
-	 	case EventLabel::EL_Read:
-	 	case EventLabel::EL_BWaitRead:
-	 	case EventLabel::EL_SpeculativeRead:
-	 	case EventLabel::EL_ConfirmingRead:
-	 	case EventLabel::EL_DskRead:
-	 	case EventLabel::EL_CasRead:
-	 	case EventLabel::EL_LockCasRead:
-	 	case EventLabel::EL_TrylockCasRead:
-	 	case EventLabel::EL_HelpedCasRead:
-	 	case EventLabel::EL_ConfirmingCasRead:
-	 	case EventLabel::EL_FaiRead:
-	 	case EventLabel::EL_BIncFaiRead:
-		 	calcReadViews(llvm::dyn_cast<ReadLabel>(lab));
-		 	break;
-	 	case EventLabel::EL_Write:
-	 	case EventLabel::EL_BInitWrite:
-	 	case EventLabel::EL_BDestroyWrite:
-	 	case EventLabel::EL_UnlockWrite:
-	 	case EventLabel::EL_CasWrite:
-	 	case EventLabel::EL_LockCasWrite:
-	 	case EventLabel::EL_TrylockCasWrite:
-	 	case EventLabel::EL_HelpedCasWrite:
-	 	case EventLabel::EL_ConfirmingCasWrite:
-	 	case EventLabel::EL_FaiWrite:
-	 	case EventLabel::EL_BIncFaiWrite:
-	 	case EventLabel::EL_DskWrite:
-	 	case EventLabel::EL_DskMdWrite:
-	 	case EventLabel::EL_DskDirWrite:
-	 	case EventLabel::EL_DskJnlWrite:
-		 	calcWriteViews(llvm::dyn_cast<WriteLabel>(lab));
-		 	break;
-	 	case EventLabel::EL_Fence:
-	 	case EventLabel::EL_DskFsync:
-	 	case EventLabel::EL_DskSync:
-	 	case EventLabel::EL_DskPbarrier:
-		 	calcFenceViews(llvm::dyn_cast<FenceLabel>(lab));
-		 	break;
-	 	case EventLabel::EL_ThreadStart:
-		 	//calcStartViews(llvm::dyn_cast<ThreadStartLabel>(lab));
-		 	break;
-	 	case EventLabel::EL_ThreadJoin:
-		 	//calcJoinViews(llvm::dyn_cast<ThreadJoinLabel>(lab));
-		 	break;
-	 	case EventLabel::EL_ThreadCreate:
-	 	case EventLabel::EL_ThreadFinish:
-	 	case EventLabel::EL_Optional:
-	 	case EventLabel::EL_LoopBegin:
-	 	case EventLabel::EL_SpinStart:
-	 	case EventLabel::EL_FaiZNESpinEnd:
-	 	case EventLabel::EL_LockZNESpinEnd:
-		case EventLabel::EL_Malloc:
-	 	case EventLabel::EL_Free:
-	 	case EventLabel::EL_HpRetire:
-	 	case EventLabel::EL_LockLAPOR:
-	 	case EventLabel::EL_UnlockLAPOR:
-		case EventLabel::EL_DskOpen:
-		case EventLabel::EL_HelpingCas:
-		case EventLabel::EL_HpProtect:
-			//calcBasicViews(lab);
-			break;
-		case EventLabel::EL_SmpFenceLKMM:
-			ERROR("LKMM fences can only be used with -lkmm!\n");
-			break;
-	 	case EventLabel::EL_RCULockLKMM:
-	 	case EventLabel::EL_RCUUnlockLKMM:
-	 	case EventLabel::EL_RCUSyncLKMM:
-			ERROR("RCU primitives can only be used with -lkmm!\n");
-			break;
-		default:
-			BUG();
-	}
-}
-
-void HBCalculator::advanceCurrentView(EventLabel *lab) {
-	auto const &g = getGraph();
-	auto const prevLab = g.getPreviousNonEmptyLabel(lab);
-	currentView[makeKey(lab)] = currentView[makeKey(prevLab)];
-	currentView[makeKey(lab)][lab->getThread()] += 1;
-
-	raAccessView[makeKey(lab)] = raAccessView[makeKey(prevLab)];
-	releaseView[makeKey(lab)] = releaseView[makeKey(prevLab)];
-	acquireView[makeKey(lab)] = acquireView[makeKey(prevLab)];
-
-	llvm::outs() << lab->getPos();
-	printView(currentView[makeKey(lab)]);
-}
-
-void HBCalculator::calcWriteViews(WriteLabel *lab) {
-	auto const &g = getGraph();
-	auto const prevLab = g.getPreviousLabel(lab);
-
-	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
-		auto const address = lab->getAddr().get();
-
-		// set ra access view to current timestamp
-		raAccessView[makeKey(lab)][address] = currentView[makeKey(lab)][lab->getThread()];
-		
-		llvm::outs() << "RF    ";
-		printView(raAccessView[makeKey(lab)]);
-
-	} else if (lab->getOrdering() == llvm::AtomicOrdering::Monotonic) {
-		// monotonic is equivalent to relaxed
-
-		auto const address = lab->getAddr().get();
-
-		raAccessView[makeKey(lab)][address] = releaseView[makeKey(lab)][lab->getThread()];
-
-		llvm::outs() << "RF    ";
-		printView(raAccessView[makeKey(lab)]);
-	}
-}
-
-void HBCalculator::calcReadViews(ReadLabel *lab) {
-	auto const &g = getGraph();
-	auto const prevLab = g.getPreviousLabel(lab);
-
-	if (lab->getOrdering() == llvm::AtomicOrdering::Acquire) {
-		auto const rf = g.getWriteLabel(lab->getRf());
-
-		if (rf) {
-			if (rf->getOrdering() == llvm::AtomicOrdering::Release) {
-				// rf event is a realease write access
-				auto const address = lab->getAddr().get();
-
-				// set index of current view of rf event to maximum of ra access view and current view
-				currentView[makeKey(lab)][rf->getThread()] =
-					std::max(raAccessView[makeKey(rf)][address], currentView[makeKey(lab)][rf->getThread()]);
-
-				llvm::outs() << "      ";
-				printView(currentView[makeKey(lab)]);
-
-			}
-			
-		} else if (lab->getRf().isInitializer()) {
-			// rf event is the [init] event
-			auto const address = lab->getAddr().get();
-
-			currentView[makeKey(lab)][0] = 0;
-
-			llvm::outs() << "      ";
-			printView(currentView[makeKey(lab)]);
-		}
-
-	} else if (lab->getOrdering() == llvm::AtomicOrdering::Monotonic) {
-		auto const rf = g.getWriteLabel(lab->getRf());
-
-		if (rf) {
-			if (rf->getOrdering() == llvm::AtomicOrdering::Monotonic) {
-				auto const address = lab->getAddr().get();
-				auto const acquireViewEntry = acquireView[makeKey(lab)][lab->getThread()];
-
-				acquireView[makeKey(lab)] = currentView[makeKey(lab)];
-				acquireView[makeKey(lab)][lab->getThread()] =
-					std::max(acquireViewEntry, raAccessView[makeKey(rf)][address]);
-
-				llvm::outs() << "A     ";
-				printView(acquireView[makeKey(lab)]);
-			}
-		} else if (lab->getRf().isInitializer()) {
-			auto const address = lab->getAddr().get();
-			auto const acquireViewEntry = acquireView[makeKey(lab)][lab->getThread()];
-
-			acquireView[makeKey(lab)] = currentView[makeKey(lab)];
-			acquireView[makeKey(lab)][lab->getThread()] = acquireViewEntry;
-
-			llvm::outs() << "A     ";
-			printView(acquireView[makeKey(lab)]);
-		}
-	}
-}
-
-void HBCalculator::calcFenceViews(FenceLabel *lab) {
-	if (lab->getOrdering() == llvm::AtomicOrdering::Release) {
-		releaseView[makeKey(lab)][lab->getThread()] = currentView[makeKey(lab)][lab->getThread()];
-
-		llvm::outs() << "R     ";
-		printView(releaseView[makeKey(lab)]);
-
-	} else if (lab->getOrdering() == llvm::AtomicOrdering::Acquire) {
-		currentView[makeKey(lab)][lab->getThread()] =
-			std::max(currentView[makeKey(lab)][lab->getThread()], acquireView[makeKey(lab)][lab->getThread()]);
-		
-		llvm::outs() << "      ";
-		printView(currentView[makeKey(lab)]);
-	}
-}
-
-std::string HBCalculator::makeKey(const EventLabel *lab) {
-	std::ostringstream oss;
-    oss << lab->getThread() << "-" << lab->getIndex();
-    return oss.str();
-}
-
-template <typename K, typename V>
-void HBCalculator::printView(const std::unordered_map<K, V> &v) {
-	llvm::outs() << "[";
-	for (const auto& [key, value] : v) {
-        llvm::outs() << "(" << key << ": " << value << ") ";
-    }
-	llvm::outs() << "]\n";
+	corr.clear();
 }
