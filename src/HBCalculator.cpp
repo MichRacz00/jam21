@@ -26,7 +26,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 				auto consistent = checkMoCoherence(previous, lab);
 				if (!consistent) {
 					llvm::outs() << getGraph();
-					llvm::outs() << "Incosnistent!";
+					llvm::outs() << "Incosnistent! on " << previous->getPos() << lab->getPos() << "\n";
 					return Calculator::CalculationResult(false, false);
 				}
 			}
