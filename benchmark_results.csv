@@ -28,7 +28,7 @@ litmus,WRC+dep,wrc+dep0.c,8,,0.03s
 litmus,MPU2+rels+acqf,mpu2+rels+acqf0.c,35,,0.03s
 litmus,relacq-B-cumul,relacq-B-cumul0.c,8,,0.03s
 litmus,MP+rels+acqf,mp+rels+acqf0.c,3,,0.03s
-litmus,po-loc,po-loc0.c,0,,0.03s
+litmus,po-loc,po-loc0.c,3,,0.03s
 litmus,CoWR,cowr0.c,3,,0.03s
 litmus,CoWR,cowr1.c,3,,0.03s
 litmus,2+2W,2+2W0.c,4,,0.03s
@@ -56,7 +56,7 @@ litmus,malloc-dep,malloc-dep0.c,2,,0.03s
 litmus,S+relf+acqf,s+relf+acqf0.c,2,,0.03s
 litmus,S+rels+acq,s+rels+acq0.c,3,,0.03s
 litmus,S+rels+acq,s+rels+acq1.c,3,,0.03s
-litmus,MPU2+rels+acq,mpu2+rels+acq0.c,35,,0.03s
+litmus,MPU2+rels+acq,mpu2+rels+acq0.c,35,,0.04s
 litmus,LB+addr-fun,lb+addr-fun0.c,3,,0.03s
 litmus,MP+rels+acq,mp+rels+acq0.c,3,,0.03s
 litmus,MP+rels+acq,mp+rels+acq1.c,3,,0.03s
@@ -114,8 +114,8 @@ litmus,fr+w+w+w+reads,fr+w+w+w+reads0.c,210,,0.04s
 litmus,psc-ar,psc-ar0.c,1,2,0.03s
 litmus,SB,sb0.c,3,,0.03s
 litmus,SB,sb1.c,3,,0.03s
-litmus,CoRR2,corr20.c,72,,0.03s
-litmus,CoRR2,corr20r.c,72,,0.03s
+litmus,CoRR2,corr20.c,72,,0.04s
+litmus,CoRR2,corr20r.c,72,,0.04s
 litmus,CoRR2,corr21.c,72,,0.03s
 litmus,CoRR2,corr22.c,72,,0.03s
 litmus,CoRR2,corr23.c,72,,0.03s
@@ -133,7 +133,7 @@ litmus,CoRR,corr0.c,6,,0.03s
 litmus,CoRR,corr1.c,6,,0.03s
 litmus,riwi,riwi0.c,3,,0.03s
 litmus,MPU+rels+acqf,mpu+rels+acqf0.c,12,,0.03s
-litmus,rfi-preserved,rfi-preserved0.c,3,,0.03s
+litmus,rfi-preserved,rfi-preserved0.c,3,,0.04s
 litmus,LB+fr-fr-data+data,LB+fr-fr-data+data0.c,16,,0.03s
 litmus,rinc+wr,rinc+wr0.c,3,,0.03s
 litmus,small0,small00.c,9,,0.03s

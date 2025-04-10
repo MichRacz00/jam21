@@ -200,7 +200,6 @@ void HBCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> pr
 		auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
 		currentHbClock[tid] += 2;
 		hbClocks[previousLabels[0]] = currentHbClock;
-
 	}
 
 	if (previousLabels.size() >= 4 &&
@@ -262,9 +261,11 @@ bool HBCalculator::calcFR() {
 			if (previousWrites.find(addr) == previousWrites.end()) {
 				for (auto r : initReadersList[addr]) {
 					
-					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
 
 					int writeTid = writeAccess->getThread();
+					if (r->getThread() == writeTid) continue;
+
+					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
 
 					if (updatedHbClocks[r][writeTid] > updatedHbClocks[writeAccess][writeTid]) {
 						llvm::outs() << updatedHbClocks[r] << updatedHbClocks[writeAccess] << "\n";
