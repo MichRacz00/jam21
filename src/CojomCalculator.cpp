@@ -44,6 +44,7 @@ bool CojomCalculator::isCojomAcyclic() {
 
 		// Calculate VO and cojom relations
 		calcTransC(&vvo);
+		llvm::outs() << pushto;
 		auto vo = merge({vvo, calcPolocRelation()});
 		llvm::outs() << vo;
 		auto cojom = calcCojom(vo);

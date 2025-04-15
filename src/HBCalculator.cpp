@@ -260,7 +260,6 @@ bool HBCalculator::calcFR() {
 
 			if (previousWrites.find(addr) == previousWrites.end()) {
 				for (auto r : initReadersList[addr]) {
-					
 
 					int writeTid = writeAccess->getThread();
 					if (r->getThread() == writeTid) continue;
@@ -415,10 +414,17 @@ void HBCalculator::calcCORR() {
 					}
 
 					llvm::outs() << previousRead->getRf() << " -corr-> " << readAccess->getRf() << "\n";
-					// Erase events with View that is in HB of the current write access
-					//it = previousWrites[addr].erase(it);
-					corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
-					cojom.addEdge(previousRead->getRf(), readAccess->getRf());
+					llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())] << hbClocks[g.getEventLabel(readAccess->getRf())] << "\n";
+
+					int startTid = previousRead->getRf().thread;
+					llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())][startTid] << " <= " << hbClocks[g.getEventLabel(readAccess->getRf())][startTid] << "\n";
+
+					if (hbClocks[g.getEventLabel(previousRead->getRf())][startTid] <= hbClocks[g.getEventLabel(readAccess->getRf())][startTid]) {
+						cojom.addEdge(previousRead->getRf(), readAccess->getRf());
+						corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
+					} else {
+						llvm::outs() << "Not added\n";
+					}
 				}
 
 				++it;
