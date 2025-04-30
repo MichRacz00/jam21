@@ -23,7 +23,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	
 
 	calcHB();
-	//llvm::outs() << getGraph();
+	llvm::outs() << getGraph();
 	//bool correctFR = calcFR();
 	//if (!correctFR) return Calculator::CalculationResult(false, false);
 
@@ -46,12 +46,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 					continue;
 				}
 
-				//hbClocks[g.getEventLabel(final)][init.thread] += 1;
-
-				llvm::outs() << init << " " << final << "\n";
-				llvm::outs() << updatedHbClocks[g.getEventLabel(final)] << " U " << updatedHbClocks[g.getEventLabel(init)] << " = ";
 				updateHBClockChain(updatedHbClocks, g.getEventLabel(final), hbClocks[g.getEventLabel(init)]);
-				llvm::outs() << updatedHbClocks[g.getEventLabel(final)] << "\n";
 			}
 		}
 
@@ -247,6 +242,8 @@ Calculator::GlobalRelation HBCalculator::createPushto(std::vector<EventLabel*> d
 	for (auto d : domain) { domainEventType.push_back(d->getPos()); }
 	Calculator::GlobalRelation pushto (domainEventType);
 
+	if (domainClocks.size() < 1) return pushto;
+
 	std::pair<EventLabel*, View> previous = domainClocks.front();
 	for (auto d : domainClocks) {
 		if (isViewStrictlyGreater(d.second, previous.second)) {
@@ -423,32 +420,12 @@ void HBCalculator::calcMO() {
     	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
 		auto const readAccess = dynamic_cast<ReadLabel*>(pair.first);
 
-		if (readAccess) {
-			auto const addr = readAccess->getAddr();
-
-			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
-				auto previousWrite = *it;
-				
-				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
-					if (previousWrite->getPos() != readAccess->getRf()) {
-						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
-						llvm::outs() << previousWrite->getPos() << " -mo-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
-					}
-				}
-
-				++it;
-			}
-		}
-
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
 
 			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 				auto previousWrite = *it;
 				if (previousWrite == writeAccess) { ++it; continue; }
-				
-				llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
-				llvm::outs() << hbClocks[writeAccess] << hbClocks[previousWrite] << "\n";
 
 				if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 
@@ -468,12 +445,36 @@ void HBCalculator::calcMO() {
 				++it;
 			}
 			
+			/*
 			if (previousWrites[addr].empty()) {
 				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
 				llvm::outs() << "(0, 0) -mo-> " << writeAccess->getPos() << "\n";
 			}
+			*/
 
 			previousWrites[addr].insert(writeAccess);
+		}
+
+		if (readAccess) {
+			auto const addr = readAccess->getAddr();
+
+			//llvm::outs() << "Checkning mo for " << readAccess->getPos() << hbClocks[readAccess] << "\n";
+
+			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
+				auto previousWrite = *it;
+
+				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
+
+					//llvm::outs() << "	found write in hb with read: " << previousWrite->getPos() << hbClocks[previousWrite] << "\n";
+
+					if (previousWrite->getPos() != readAccess->getRf() && !isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[g.getEventLabel(readAccess->getRf())])) {
+						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
+						llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
+					}
+				}
+
+				++it;
+			}
 		}
 	}
 }
