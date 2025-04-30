@@ -25,8 +25,8 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 
 	calcHB();
 	llvm::outs() << getGraph();
-	bool correctFR = calcFR();
-	if (!correctFR) return Calculator::CalculationResult(false, false);
+	//bool correctFR = calcFR();
+	//if (!correctFR) return Calculator::CalculationResult(false, false);
 	calcMO();
 	calcCORR();
 
@@ -423,7 +423,7 @@ void HBCalculator::calcCORR() {
 						cojom.addEdge(previousRead->getRf(), readAccess->getRf());
 						corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
 					} else {
-						llvm::outs() << "Not added\n";
+						llvm::outs() << "Invalid corr edge\n";
 					}
 				}
 
