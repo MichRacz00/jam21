@@ -32,6 +32,8 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 
 	auto &g = getGraph();
 
+	llvm::outs() << " --- Model checking " << pushtos.size() << " linearisations: ---\n";
+
 	for (auto p : pushtos) {
 		Calculator::GlobalRelation c(allLabels);
 		cojom = c;
@@ -60,13 +62,11 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		cojom.transClosure();
 		if (cojom.isIrreflexive()) {
 			return Calculator::CalculationResult(false, true);
-		} else {
-			llvm::outs() << "Inconsistent!\n";
 		}
-
 		hbClocks = copyHbClocks;
 	}
 
+	llvm::outs() << "Inconsistent!\n";
 	return Calculator::CalculationResult(false, false);
 }
 
@@ -445,12 +445,12 @@ void HBCalculator::calcMO() {
 				++it;
 			}
 			
-			/*
+			
 			if (previousWrites[addr].empty()) {
 				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
 				llvm::outs() << "(0, 0) -mo-> " << writeAccess->getPos() << "\n";
 			}
-			*/
+			
 
 			previousWrites[addr].insert(writeAccess);
 		}
@@ -458,18 +458,24 @@ void HBCalculator::calcMO() {
 		if (readAccess) {
 			auto const addr = readAccess->getAddr();
 
-			//llvm::outs() << "Checkning mo for " << readAccess->getPos() << hbClocks[readAccess] << "\n";
+			llvm::outs() << "Checkning mo for " << readAccess->getPos() << hbClocks[readAccess] << "\n";
 
 			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 				auto previousWrite = *it;
 
 				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
 
-					//llvm::outs() << "	found write in hb with read: " << previousWrite->getPos() << hbClocks[previousWrite] << "\n";
-
+					llvm::outs() << "	found write in hb with read: " << previousWrite->getPos() << hbClocks[previousWrite] << "\n";
+					llvm::outs() << "	" << hbClocks[previousWrite] << " > " << hbClocks[g.getEventLabel(readAccess->getRf())] << "\n";
+					
 					if (previousWrite->getPos() != readAccess->getRf() && !isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[g.getEventLabel(readAccess->getRf())])) {
 						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
 						llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
+					}
+
+					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
+						llvm::outs() << previousWrite->getPos() << " -mo (i)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
+						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
 					}
 				}
 
