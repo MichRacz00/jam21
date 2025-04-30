@@ -20,71 +20,59 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		allLabels.push_back(lab->getPos());
 	}
 
-	Calculator::GlobalRelation a(allLabels);
-	cojom = a;
+	
 
 	calcHB();
 	//llvm::outs() << getGraph();
 	//bool correctFR = calcFR();
 	//if (!correctFR) return Calculator::CalculationResult(false, false);
-	calcMO();
-	calcCORR();
 
 	auto pushtoRel = createPushto(domainPushto);
-	calcAllLinearisations(pushtoRel);
+	auto pushtos = calcAllLinearisations(pushtoRel);
 
-	/*
+	auto &g = getGraph();
 
-	for (auto pair : mo) {
-		WriteLabel* previous = nullptr;
-		for (auto lab : pair.second) {
-			if (previous != nullptr) {
-				llvm::outs() << "Adding mo edge " << previous->getPos() << " -mo-> " << lab->getPos() << "\n";
-				cojom.addEdge(previous->getPos(), lab->getPos());
-			}
-			previous = lab;
-		}
-	}
+	for (auto p : pushtos) {
+		Calculator::GlobalRelation c(allLabels);
+		cojom = c;
+		std::unordered_map<EventLabel*, View> copyHbClocks (hbClocks);
+		std::unordered_map<EventLabel*, View> updatedHbClocks (hbClocks);
 
-	for (auto pair : corr) {
-		EventLabel* previous = nullptr;
-		for (auto lab : pair.second) {
-			if (previous != nullptr) {
-				llvm::outs() << "Adding corr edge " << previous->getPos() << " -mo-> " << lab->getPos() << "\n";
-				cojom.addEdge(previous->getPos(), lab->getPos());
-			}
-			previous = lab;
-		}
-	}
-		*/
+		llvm::outs() << p;
 
-	llvm::outs() << cojom;
-
-	cojom.transClosure();
-
-	/*
-
-	for (auto pair : mo) {
-		WriteLabel* previous = nullptr;
-		for (auto lab : pair.second) {
-			if (previous != nullptr) {
-				auto consistent = checkMoCoherence(previous, lab);
-				llvm::outs() << "Checking mo consistence " << previous->getPos() << " -mo?-> " << lab->getPos() << "\n";
-				if (!consistent) {
-					llvm::outs() << getGraph();
-					llvm::outs() << "Incosnistent! on " << previous->getPos() << lab->getPos() << "\n";
-					return Calculator::CalculationResult(false, false);
+		for (auto init : p.getElems()) {
+			for (auto final : p.getElems()) {
+				if (!p(init, final)) {
+					continue;
 				}
+
+				//hbClocks[g.getEventLabel(final)][init.thread] += 1;
+
+				llvm::outs() << init << " " << final << "\n";
+				llvm::outs() << updatedHbClocks[g.getEventLabel(final)] << " U " << updatedHbClocks[g.getEventLabel(init)] << " = ";
+				updateHBClockChain(updatedHbClocks, g.getEventLabel(final), hbClocks[g.getEventLabel(init)]);
+				llvm::outs() << updatedHbClocks[g.getEventLabel(final)] << "\n";
 			}
-			previous = lab;
 		}
-	}*/
 
-	llvm::outs() << getGraph();
+		hbClocks = updatedHbClocks;
 
-	if (!cojom.isIrreflexive()) llvm::outs() << "Inconsistent!\n";
+		calcMO();
+		//calcCORR();
 
-	return Calculator::CalculationResult(false, cojom.isIrreflexive());
+		llvm::outs() << cojom;
+
+		cojom.transClosure();
+		if (cojom.isIrreflexive()) {
+			return Calculator::CalculationResult(false, true);
+		} else {
+			llvm::outs() << "Inconsistent!\n";
+		}
+
+		hbClocks = copyHbClocks;
+	}
+
+	return Calculator::CalculationResult(false, false);
 }
 
 void HBCalculator::removeAfter(const VectorClock &preds)
@@ -299,21 +287,15 @@ std::vector<Calculator::GlobalRelation> HBCalculator::calcAllLinearisations(Glob
 			}
 		}
 
-		/**
-	 	* Create relation object, add total order edges
-	 	* reflecting event order from the topo sort vecotr, ex:
-	 	* 
-	 	* topologicalSort [A, B, C]
-	 	* relation: (A) -> (B), (B) -> (C)
-	 	*/
 		Calculator::GlobalRelation pushto(sort);
 		for (int i = 1; i < sort.size(); i ++) {
-			const auto elemA = pushto.getElems()[i - 1];
-			const auto elemB = pushto.getElems()[i];
-			pushto.addEdge(elemA, elemB);
+			auto elemA = pushto.getElems()[i - 1];
+			auto elemB = pushto.getElems()[i];
+			if (!isViewStrictlyGreater(hbClocks[g.getEventLabel(elemB)], hbClocks[g.getEventLabel(elemA)])) {
+				pushto.addEdge(elemA, elemB);
+			}
 		}
 
-		llvm::outs() << pushto;
 		pushtos.push_back(pushto);
 
 		// Allways return false to keep finding all possible topological sorts
@@ -415,6 +397,7 @@ std::unordered_map<SAddr, std::set<EventLabel*>> HBCalculator::getInitReadersLis
 }
 
 void HBCalculator::calcMO() {
+	auto &g = getGraph();
 	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
@@ -438,6 +421,24 @@ void HBCalculator::calcMO() {
 
 	for (auto pair : sortedHbClocks) {
     	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
+		auto const readAccess = dynamic_cast<ReadLabel*>(pair.first);
+
+		if (readAccess) {
+			auto const addr = readAccess->getAddr();
+
+			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
+				auto previousWrite = *it;
+				
+				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
+					if (previousWrite->getPos() != readAccess->getRf()) {
+						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
+						llvm::outs() << previousWrite->getPos() << " -mo-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
+					}
+				}
+
+				++it;
+			}
+		}
 
 		if (writeAccess) {
 			auto const addr = writeAccess->getAddr();
@@ -446,7 +447,8 @@ void HBCalculator::calcMO() {
 				auto previousWrite = *it;
 				if (previousWrite == writeAccess) { ++it; continue; }
 				
-				//llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
+				llvm::outs() << "Calculating mo for: " << previousWrite->getPos() << " " << writeAccess->getPos() << "\n";
+				llvm::outs() << hbClocks[writeAccess] << hbClocks[previousWrite] << "\n";
 
 				if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 
@@ -456,17 +458,21 @@ void HBCalculator::calcMO() {
 					}
 
 					llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
-					// Erase events with View that is in HB of the current write access
 					mo[addr].push_back(writeAccess);
 					cojom.addEdge(previousWrite->getPos(), writeAccess->getPos());
 
+					// Erase events with View that is in HB of the current write access
 					//it = previousWrites[addr].erase(it);
-					++it;
-				} else {
-					++it;
 				}
+
+				++it;
 			}
 			
+			if (previousWrites[addr].empty()) {
+				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
+				llvm::outs() << "(0, 0) -mo-> " << writeAccess->getPos() << "\n";
+			}
+
 			previousWrites[addr].insert(writeAccess);
 		}
 	}
@@ -505,6 +511,8 @@ void HBCalculator::calcCORR() {
 				auto previousRead = *it;
 				if (previousRead->getRf() == readAccess->getRf()) { ++it; continue; }
 
+				llvm::outs() << readAccess->getPos() << pair.second << "\n";
+
 				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousRead])) {
 					if (corr.find(addr) == corr.end()) {
 						// Entry in corr for this addres does not exist yet
@@ -517,12 +525,17 @@ void HBCalculator::calcCORR() {
 					int startTid = previousRead->getRf().thread;
 					llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())][startTid] << " <= " << hbClocks[g.getEventLabel(readAccess->getRf())][startTid] << "\n";
 
+					cojom.addEdge(previousRead->getRf(), readAccess->getRf());
+					corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
+
+					/*
 					if (hbClocks[g.getEventLabel(previousRead->getRf())][startTid] <= hbClocks[g.getEventLabel(readAccess->getRf())][startTid]) {
 						cojom.addEdge(previousRead->getRf(), readAccess->getRf());
 						corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
 					} else {
 						llvm::outs() << "Invalid corr edge\n";
 					}
+					*/
 				}
 
 				++it;
@@ -586,9 +599,12 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
         return false; // equal views
     });
 
+	llvm::outs() << "\n";
+
 	for (auto pair : sortedHbClocks) {
-		if (!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first) continue;
+		if ((!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first)) continue;
 		newHbClock[pair.first] = mergeViews(newView, newHbClock[pair.first]);
+		llvm::outs() << "  U  " << pair.first->getPos() << pair.second << "\n";
 	}
 }
 
