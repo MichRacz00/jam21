@@ -30,9 +30,8 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	calcMO();
 	calcCORR();
 
-	for (auto d : domainPushto) {
-		llvm::outs() << d->getPos() << "\n";
-	}
+	auto pushtoRel = createPushto(domainPushto);
+	calcAllLinearisations(pushtoRel);
 
 	/*
 
@@ -229,6 +228,99 @@ View HBCalculator::mergeViews(const View a, const View b) {
     }
 
 	return mergedView;
+}
+
+Calculator::GlobalRelation HBCalculator::createPushto(std::vector<EventLabel*> domain) {
+	auto &g = getGraph();
+	std::vector<std::pair<EventLabel*, View>> domainClocks;
+	for (auto d : domain) {
+		domainClocks.push_back({d, hbClocks[d]});
+	}
+
+	std::sort(domainClocks.begin(), domainClocks.end(),
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+                return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
+    });
+
+	std::vector<Event> domainEventType;
+	for (auto d : domain) { domainEventType.push_back(d->getPos()); }
+	Calculator::GlobalRelation pushto (domainEventType);
+
+	std::pair<EventLabel*, View> previous = domainClocks.front();
+	for (auto d : domainClocks) {
+		if (isViewStrictlyGreater(d.second, previous.second)) {
+			pushto.addEdge(previous.first->getPos(), d.first->getPos());
+		}
+		previous = d;
+	}
+
+	return pushto;
+}
+
+std::vector<Calculator::GlobalRelation> HBCalculator::calcAllLinearisations(GlobalRelation rel) {
+	std::vector<GlobalRelation> pushtos;
+
+	rel.allTopoSort([this, &pushtos](auto& sort) {
+		auto &g = getGraph();
+
+		// Iterate over all events in an ordering to check
+		// if they adhere to porf view
+		for (int i = 0; i < sort.size(); i++) {
+			auto lab = g.getEventLabel(sort[i]);
+
+			for (int j = i + 1; j < sort.size(); j ++) {
+				auto nextLab = g.getEventLabel(sort[j]);
+
+				// If two events are concurrent, the ordering in the linearisation
+				// between those two events can be arbitrary
+				bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
+							&& !(nextLab->getPorfView() <= lab->getPorfView());
+				if (concurent) continue;
+
+				// If the next event has vector clock lower than the current event,
+				// those events have not been ordered consecutively in the po U rf view.
+				// This linearisation must be rejected
+				if (nextLab->getPorfView() <= lab->getPorfView()) {
+					return false;
+				}
+			}
+		}
+
+		/**
+	 	* Create relation object, add total order edges
+	 	* reflecting event order from the topo sort vecotr, ex:
+	 	* 
+	 	* topologicalSort [A, B, C]
+	 	* relation: (A) -> (B), (B) -> (C)
+	 	*/
+		Calculator::GlobalRelation pushto(sort);
+		for (int i = 1; i < sort.size(); i ++) {
+			const auto elemA = pushto.getElems()[i - 1];
+			const auto elemB = pushto.getElems()[i];
+			pushto.addEdge(elemA, elemB);
+		}
+
+		llvm::outs() << pushto;
+		pushtos.push_back(pushto);
+
+		// Allways return false to keep finding all possible topological sorts
+		return false;
+    });
+
+	return pushtos;
 }
 
 bool HBCalculator::calcFR() {

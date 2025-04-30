@@ -56,6 +56,9 @@ private:
 	void calcCORR();
 	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
+	Calculator::GlobalRelation createPushto(std::vector<EventLabel*> domain);
+	std::vector<Calculator::GlobalRelation> calcAllLinearisations(GlobalRelation rel);
+
 	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
 	void updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClocks, EventLabel* start, View newView);
 	std::unordered_map<SAddr, std::set<EventLabel*>> getInitReadersList();
