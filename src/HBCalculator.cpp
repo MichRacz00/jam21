@@ -1,4 +1,4 @@
-#include "HBCalculator.hpp"
+ #include "HBCalculator.hpp"
 #include "Error.hpp"
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
@@ -24,11 +24,15 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	cojom = a;
 
 	calcHB();
-	llvm::outs() << getGraph();
+	//llvm::outs() << getGraph();
 	//bool correctFR = calcFR();
 	//if (!correctFR) return Calculator::CalculationResult(false, false);
 	calcMO();
 	calcCORR();
+
+	for (auto d : domainPushto) {
+		llvm::outs() << d->getPos() << "\n";
+	}
 
 	/*
 
@@ -184,6 +188,7 @@ void HBCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> pr
 		auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
 		currentHbClock[tid] += 1;
 		hbClocks[previousLabels[0]] = currentHbClock;
+		domainPushto.push_back(previousLabels[1]);
 	}
 
 	if (previousLabels.size() >= 3 && previousLabels[1]->isSC() && isFence(previousLabels[1])) {
@@ -192,6 +197,7 @@ void HBCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> pr
 		auto currentHbClock = View(prevHbClock);
 		currentHbClock[tid] += 2;
 		hbClocks[previousLabels[0]] = currentHbClock;
+		domainPushto.push_back(previousLabels[2]);
 	}
 
 	if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
@@ -512,4 +518,5 @@ void HBCalculator::resetViews() {
 	moClocks.clear();
 	mo.clear();
 	corr.clear();
+	domainPushto.clear();
 }
