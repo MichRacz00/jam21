@@ -158,11 +158,9 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		calcIntraThreadHB(lab.get(), previousLabels);
 
 		if (memAccessLab) {
-			auto previousAccessView = baseViews[memAccessLab->getAddr()]; // temp
-			hbClocks[previousLabels[0]] = mergeViews(previousAccessView, hbClocks[previousLabels[0]]); //temp
-			llvm::outs() << "new view: " << hbClocks[previousLabels[0]] << "\n";
-
-			baseViews[memAccessLab->getAddr()] = hbClocks[previousLabels[0]]; // temp
+			auto previousAccessView = baseViews[memAccessLab->getAddr()];
+			hbClocks[previousLabels[0]] = mergeViews(previousAccessView, hbClocks[previousLabels[0]]);
+			baseViews[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
 		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
@@ -485,10 +483,12 @@ void HBCalculator::calcMO() {
 						llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
 					}
 
+					/*
 					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
 						llvm::outs() << previousWrite->getPos() << " -mo (i)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
 						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
 					}
+						*/
 				}
 
 				++it;
