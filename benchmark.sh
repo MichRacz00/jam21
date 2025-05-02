@@ -2,7 +2,7 @@
 
 # Define variables
 BINARY="./src/genmc"
-ROOT_DIR="./tests/correct/litmus"
+ROOT_DIR="./tests/correct/data-structures"
 RESULTS_FILE="benchmark_results.csv"
 
 # Clear log file
