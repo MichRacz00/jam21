@@ -56,6 +56,8 @@ private:
 	void calcCORR();
 	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
+	EventLabel* getMinimalWrite(EventLabel* m, SAddr addr);
+
 	Calculator::GlobalRelation createPushto(std::vector<EventLabel*> domain);
 	std::vector<Calculator::GlobalRelation> calcAllLinearisations(GlobalRelation rel);
 
@@ -65,6 +67,7 @@ private:
 
 	View mergeViews(const View a, const View b);
 	bool isViewStrictlyGreater(const View a, const View b);
+	bool isViewStrictlySmaller(const View a, const View b);
 	bool isFence(EventLabel *lab);
 
 	void resetViews();

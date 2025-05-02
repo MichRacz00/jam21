@@ -40,6 +40,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		std::unordered_map<EventLabel*, View> copyHbClocks (hbClocks);
 		std::unordered_map<EventLabel*, View> updatedHbClocks (hbClocks);
 
+		llvm::outs() << g;
 		llvm::outs() << p;
 
 		for (auto init : p.getElems()) {
@@ -468,33 +469,106 @@ void HBCalculator::calcMO() {
 		if (readAccess) {
 			auto const addr = readAccess->getAddr();
 
-			llvm::outs() << "Checkning mo for " << readAccess->getPos() << hbClocks[readAccess] << "\n";
+			llvm::outs() << "Checkning mo for " << readAccess->getPos() << " -rf-> " << readAccess->getRf() << "\n";
 
 			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 				auto previousWrite = *it;
 
 				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
 
-					llvm::outs() << "	found write in hb with read: " << previousWrite->getPos() << hbClocks[previousWrite] << "\n";
-					llvm::outs() << "	" << hbClocks[previousWrite] << " > " << hbClocks[g.getEventLabel(readAccess->getRf())] << "\n";
-					
 					if (previousWrite->getPos() != readAccess->getRf() && !isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[g.getEventLabel(readAccess->getRf())])) {
 						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
 						llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
 					}
 
-					/*
 					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
-						llvm::outs() << previousWrite->getPos() << " -mo (i)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
-						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
+						auto prevHbWrite = getMinimalWrite(readAccess, readAccess->getAddr());
+
+						cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
+						llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
+						
 					}
-						*/
 				}
 
 				++it;
 			}
 		}
 	}
+}
+
+EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
+	auto &g = getGraph();
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
+
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+                return aVal > bVal; // descending sort
+        }
+
+        return false; // equal views
+    });
+
+	bool foundStart = false;
+	EventLabel* minimalLabel = m;
+	EventLabel* previousWrite = g.getEventLabel(m->getPos().getInitializer());
+
+	llvm::outs() << "Finding minimal write starting at " << m->getPos() << " for addr " << addr << "\n";
+
+	for (auto pair : sortedHbClocks) {
+		auto threadStart = dynamic_cast<ThreadStartLabel*>(pair.first);
+		auto threadEnd = dynamic_cast<ThreadFinishLabel*>(pair.first);
+		auto threadCreateLabel = dynamic_cast<ThreadCreateLabel*>(pair.first);
+		if (threadStart || threadEnd || threadCreateLabel) continue;
+
+		if (!foundStart && pair.first == m) {
+			foundStart = true;
+			continue;
+		} else if (!foundStart) {
+			continue;
+		}
+
+		if (!isViewStrictlySmaller(pair.second, hbClocks[minimalLabel])) {
+			continue;
+		}
+
+		llvm::outs() << pair.first->getPos() << minimalLabel->getPos() << "\n";
+		llvm::outs() << pair.second << " < " << hbClocks[minimalLabel] << "\n";
+		minimalLabel = pair.first;
+
+		auto readAccess = dynamic_cast<ReadLabel*> (pair.first);
+		if (readAccess) {
+			auto rf = g.getEventLabel(readAccess->getRf());
+			auto candidateMinimalWrite = getMinimalWrite(rf, addr);
+			auto writeRf = dynamic_cast<WriteLabel*>(rf);
+
+			if (readAccess->getRf().isInitializer()) {
+				previousWrite = rf;
+			} else if (writeRf->getAddr() == addr && isViewStrictlyGreater(hbClocks[rf], hbClocks[previousWrite])) {
+				previousWrite = rf;
+				llvm::outs() << "updating previous write to " << rf->getPos() << "\n";
+			}
+		}
+
+		auto writeAccess = dynamic_cast<WriteLabel*> (pair.first);
+		if (writeAccess) {
+			if (writeAccess->getAddr() == addr && isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
+				previousWrite = writeAccess;
+				llvm::outs() << "updating previous write to " << writeAccess->getPos() << "\n";
+			}
+		}
+	}
+
+	return previousWrite;
 }
 
 void HBCalculator::calcCORR() {
@@ -596,6 +670,21 @@ bool HBCalculator::isViewStrictlyGreater(View a, View b) {
     return strictlyGreaterFound;
 }
 
+bool HBCalculator::isViewStrictlySmaller(View a, View b) {
+	int size = std::max(a.size(), b.size());
+	bool strictlySmallerFound = false;
+
+	for (int i = 0; i < size; i ++) {
+        if (a[i] > b[i]) {
+			return false;
+		} else if (a[i] < b[i]) {
+			strictlySmallerFound = true;
+		}
+    }
+
+    return strictlySmallerFound;
+}
+
 void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
 	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(newHbClock.begin(), newHbClock.end());
@@ -623,7 +712,6 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
 	for (auto pair : sortedHbClocks) {
 		if ((!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first)) continue;
 		newHbClock[pair.first] = mergeViews(newView, newHbClock[pair.first]);
-		llvm::outs() << "  U  " << pair.first->getPos() << pair.second << "\n";
 	}
 }
 
