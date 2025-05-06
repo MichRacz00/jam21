@@ -468,14 +468,29 @@ void HBCalculator::calcMO() {
 
 		if (readAccess) {
 			auto const addr = readAccess->getAddr();
+			auto const writeRf = readAccess->getRf();
+			auto prevHBWrite = getMinimalWrite(readAccess, readAccess->getAddr());
 
-			llvm::outs() << "Checkning mo for " << readAccess->getPos() << " -rf-> " << readAccess->getRf() << "\n";
+			llvm::outs() << "Checkning mo for " << readAccess->getPos() << " <-rf- " << writeRf << "\n";
+
+			if (prevHBWrite->getPos() != writeRf) {
+				cojom.addEdge(prevHBWrite->getPos(), writeRf);
+				llvm::outs() << prevHBWrite->getPos() << " -mo (rf)-> " << writeRf << "\n";
+			}
 
 			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
 				auto previousWrite = *it;
 
 				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
 
+					//auto prevHBWrite = getMinimalWrite(readAccess, readAccess->getAddr());
+
+					//if (previousWrite->getPos() != prevHBWrite->getPos()) {
+					//	llvm::outs() << previousWrite->getPos() << " -mo (i) ?-> " << prevHBWrite->getPos() << "\n";
+					//	cojom.addEdge(previousWrite->getPos(), prevHBWrite->getPos());
+					//}
+
+					/*
 					if (previousWrite->getPos() != readAccess->getRf() && !isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[g.getEventLabel(readAccess->getRf())])) {
 						
 						if (previousWrite->getPos() != readAccess->getPos()) {
@@ -487,11 +502,14 @@ void HBCalculator::calcMO() {
 					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
 						auto prevHbWrite = getMinimalWrite(readAccess, readAccess->getAddr());
 
-						if (prevHbWrite->getPos() != readAccess->getRf()) {
+						llvm::outs() << prevHbWrite->getPos() << " -mo (i) ?-> " <<  readAccess->getRf() << "\n";
+
+						if (prevHbWrite->getPos() != readAccess->getPos()) {
 							cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
 							llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
 						}
 					}
+						*/
 				}
 
 				++it;
