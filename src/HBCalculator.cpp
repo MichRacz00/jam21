@@ -484,8 +484,11 @@ void HBCalculator::calcMO() {
 					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
 						auto prevHbWrite = getMinimalWrite(readAccess, readAccess->getAddr());
 
-						cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
-						llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
+						if (prevHbWrite->getPos() != readAccess->getRf()) {
+							cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
+							llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
+						}
+						
 						
 					}
 				}
