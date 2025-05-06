@@ -49,7 +49,10 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 					continue;
 				}
 
-				updateHBClockChain(updatedHbClocks, g.getEventLabel(final), hbClocks[g.getEventLabel(init)]);
+				auto pushtoView = View(hbClocks[g.getEventLabel(init)]);
+				pushtoView[init.thread] += 1;
+
+				updateHBClockChain(updatedHbClocks, g.getEventLabel(final), pushtoView);
 			}
 		}
 
@@ -469,51 +472,19 @@ void HBCalculator::calcMO() {
 		if (readAccess) {
 			auto const addr = readAccess->getAddr();
 			auto const writeRf = readAccess->getRf();
-			auto prevHBWrite = getMinimalWrite(readAccess, readAccess->getAddr());
 
 			llvm::outs() << "Checkning mo for " << readAccess->getPos() << " <-rf- " << writeRf << "\n";
+
+			auto prevHBWrite = getMinimalWrite(readAccess, readAccess->getAddr());
 
 			if (prevHBWrite->getPos() != writeRf) {
 				cojom.addEdge(prevHBWrite->getPos(), writeRf);
 				llvm::outs() << prevHBWrite->getPos() << " -mo (rf)-> " << writeRf << "\n";
+			} else {
+				llvm::outs() << "Previous access in HB is rf-write\n";
 			}
 
-			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
-				auto previousWrite = *it;
-
-				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
-
-					//auto prevHBWrite = getMinimalWrite(readAccess, readAccess->getAddr());
-
-					//if (previousWrite->getPos() != prevHBWrite->getPos()) {
-					//	llvm::outs() << previousWrite->getPos() << " -mo (i) ?-> " << prevHBWrite->getPos() << "\n";
-					//	cojom.addEdge(previousWrite->getPos(), prevHBWrite->getPos());
-					//}
-
-					/*
-					if (previousWrite->getPos() != readAccess->getRf() && !isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[g.getEventLabel(readAccess->getRf())])) {
-						
-						if (previousWrite->getPos() != readAccess->getPos()) {
-							cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
-							llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
-						}
-					}
-
-					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
-						auto prevHbWrite = getMinimalWrite(readAccess, readAccess->getAddr());
-
-						llvm::outs() << prevHbWrite->getPos() << " -mo (i) ?-> " <<  readAccess->getRf() << "\n";
-
-						if (prevHbWrite->getPos() != readAccess->getPos()) {
-							cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
-							llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
-						}
-					}
-						*/
-				}
-
-				++it;
-			}
+			llvm::outs() << "\n";
 		}
 	}
 }
