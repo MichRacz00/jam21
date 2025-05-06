@@ -13,12 +13,12 @@ data-structures,linuxrwlocks,linuxrwlocks0.c,2,2,0.03s
 data-structures,mpmc-queue,main0.c,3,4,0.03s
 data-structures,ms-queue,main0.c,4,1,0.04s
 data-structures,seqlock,main0.c,failed,failed
-data-structures,twalock,main0.c,4,1,0.17s
+data-structures,twalock,main0.c,4,1,0.18s
 data-structures,mutex,main0.c,12,1,0.03s
 data-structures,qspinlock,main0.c,failed,failed
 data-structures,dq-opt,main0.c,111,1,0.05s
-data-structures,dq,main0.c,111,1,0.05s
-data-structures,dq,main1.c,62,1,0.04s
+data-structures,dq,main0.c,111,1,0.06s
+data-structures,dq,main1.c,62,1,0.05s
 data-structures,mcs_spinlock,main0.c,failed,failed
 data-structures,ms-queue-dynamic,main0.c,2,8,0.03s
 data-structures,stc-opt,main0.c,183,,0.10s

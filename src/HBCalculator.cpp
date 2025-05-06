@@ -477,8 +477,11 @@ void HBCalculator::calcMO() {
 				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousWrite])) {
 
 					if (previousWrite->getPos() != readAccess->getRf() && !isViewStrictlyGreater(hbClocks[previousWrite], hbClocks[g.getEventLabel(readAccess->getRf())])) {
-						cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
-						llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
+						
+						if (previousWrite->getPos() != readAccess->getPos()) {
+							cojom.addEdge(previousWrite->getPos(), readAccess->getRf());
+							llvm::outs() << previousWrite->getPos() << " -mo (rf)-> " <<  g.getEventLabel(readAccess->getRf())->getPos() << "\n";
+						}
 					}
 
 					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
@@ -554,12 +557,19 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 			auto candidateMinimalWrite = getMinimalWrite(rf, addr);
 			auto writeRf = dynamic_cast<WriteLabel*>(rf);
 
+			if (isViewStrictlyGreater(hbClocks[candidateMinimalWrite], hbClocks[previousWrite])) {
+				previousWrite = candidateMinimalWrite;
+				llvm::outs() << "updating previous write to " << previousWrite->getPos() << "\n";
+			}
+			
 			if (readAccess->getRf().isInitializer()) {
 				previousWrite = rf;
 			} else if (writeRf->getAddr() == addr && isViewStrictlyGreater(hbClocks[rf], hbClocks[previousWrite])) {
 				previousWrite = rf;
 				llvm::outs() << "updating previous write to " << rf->getPos() << "\n";
 			}
+
+			llvm::outs() << "finished finding\n";
 		}
 
 		auto writeAccess = dynamic_cast<WriteLabel*> (pair.first);
