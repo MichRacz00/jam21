@@ -551,6 +551,28 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 		llvm::outs() << pair.second << " < " << hbClocks[minimalLabel] << "\n";
 		minimalLabel = pair.first;
 
+		auto writeAccess = dynamic_cast<WriteLabel*> (pair.first);
+		if (writeAccess) {
+			if (writeAccess->getAddr() == addr && isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
+				//previousWrite = writeAccess;
+				llvm::outs() << "found write access previously in HB " << writeAccess->getPos() << "\n";
+				return writeAccess;
+			}
+		}
+
+		auto readAccess = dynamic_cast<ReadLabel*> (pair.first);
+		if (readAccess) {
+			auto rf = g.getEventLabel(readAccess->getRf());
+			auto writeRf = dynamic_cast<WriteLabel*>(rf);
+			
+			if (readAccess->getAddr() == addr) {
+				return rf;
+			}
+
+			minimalLabel = rf;
+		}
+
+		/*
 		auto readAccess = dynamic_cast<ReadLabel*> (pair.first);
 		if (readAccess) {
 			auto rf = g.getEventLabel(readAccess->getRf());
@@ -579,6 +601,7 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 				llvm::outs() << "updating previous write to " << writeAccess->getPos() << "\n";
 			}
 		}
+			*/
 	}
 
 	return previousWrite;
