@@ -487,12 +487,8 @@ void HBCalculator::calcMO() {
 					if (previousWrite->getPos() != readAccess->getRf() && readAccess->getRf().isInitializer() && addr == previousWrite->getAddr()) {
 						auto prevHbWrite = getMinimalWrite(readAccess, readAccess->getAddr());
 
-						if (prevHbWrite->getPos() != readAccess->getRf()) {
-							cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
-							llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
-						}
-						
-						
+						cojom.addEdge(prevHbWrite->getPos(), readAccess->getRf());
+						llvm::outs() << prevHbWrite->getPos() << " -mo (i)-> " <<  readAccess->getRf() << "\n";
 					}
 				}
 
@@ -566,45 +562,17 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 			auto writeRf = dynamic_cast<WriteLabel*>(rf);
 			
 			if (readAccess->getAddr() == addr) {
+				llvm::outs() << "returning write access by rf\n";
 				return rf;
 			}
 
 			minimalLabel = rf;
 		}
-
-		/*
-		auto readAccess = dynamic_cast<ReadLabel*> (pair.first);
-		if (readAccess) {
-			auto rf = g.getEventLabel(readAccess->getRf());
-			auto candidateMinimalWrite = getMinimalWrite(rf, addr);
-			auto writeRf = dynamic_cast<WriteLabel*>(rf);
-
-			if (isViewStrictlyGreater(hbClocks[candidateMinimalWrite], hbClocks[previousWrite])) {
-				previousWrite = candidateMinimalWrite;
-				llvm::outs() << "updating previous write to " << previousWrite->getPos() << "\n";
-			}
-			
-			if (readAccess->getRf().isInitializer()) {
-				previousWrite = rf;
-			} else if (writeRf->getAddr() == addr && isViewStrictlyGreater(hbClocks[rf], hbClocks[previousWrite])) {
-				previousWrite = rf;
-				llvm::outs() << "updating previous write to " << rf->getPos() << "\n";
-			}
-
-			llvm::outs() << "finished finding\n";
-		}
-
-		auto writeAccess = dynamic_cast<WriteLabel*> (pair.first);
-		if (writeAccess) {
-			if (writeAccess->getAddr() == addr && isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
-				previousWrite = writeAccess;
-				llvm::outs() << "updating previous write to " << writeAccess->getPos() << "\n";
-			}
-		}
-			*/
 	}
 
-	return previousWrite;
+	llvm::outs() << "iterated over all accesses\n";
+
+	return g.getEventLabel(m->getPos().getInitializer());
 }
 
 void HBCalculator::calcCORR() {

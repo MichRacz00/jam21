@@ -1,6 +1,6 @@
 litmus,Z6.U,Z6.U0.c,23,,0.03s
 litmus,2+2W+4sc,2+2w+4sc0.c,4,,0.03s
-litmus,SB+rfis,SB+rfis0.c,4,,0.03s
+litmus,SB+rfis,SB+rfis0.c,3,,0.03s
 litmus,inc2w,inc2w0.c,6,,0.03s
 litmus,MPU2+relf+acq,mpu2+relf+acq0.c,14,,0.03s
 litmus,S+relf+acq,s+relf+acq0.c,2,,0.03s
@@ -33,7 +33,7 @@ litmus,CoWR,cowr0.c,3,,0.03s
 litmus,CoWR,cowr1.c,3,,0.03s
 litmus,2+2W,2+2W0.c,4,,0.03s
 litmus,2+2W,2+2W1.c,4,,0.03s
-litmus,RWC+syncs,rwc+syncs0.c,8,,0.03s
+litmus,RWC+syncs,rwc+syncs0.c,7,,0.03s
 litmus,MPU+rels+acq,mpu+rels+acq0.c,12,,0.03s
 litmus,wcii,wcii0.c,24,,0.03s
 litmus,LB2,lb0.c,3,,0.03s
@@ -47,11 +47,11 @@ litmus,MP+incMP,MP+incMP0.c,7,,0.03s
 litmus,MP,mp0.c,3,,0.03s
 litmus,MP,mp1.c,3,,0.03s
 litmus,MP+relf+acqf,mp+relf+acqf0.c,2,,0.03s
-litmus,SB+scfs,sb+scfs0.c,4,,0.03s
+litmus,SB+scfs,sb+scfs0.c,3,,0.03s
 litmus,S+rels+acqf,s+rels+acqf0.c,3,,0.03s
 litmus,MPU2+rel+acqf,mpu2+rel+acqf0.c,14,,0.03s
 litmus,TC1,tc10.c,3,,0.03s
-litmus,IRIW-acq-sc,IRIW-acq-sc0.c,16,,0.03s
+litmus,IRIW-acq-sc,IRIW-acq-sc0.c,16,,0.04s
 litmus,malloc-dep,malloc-dep0.c,2,,0.03s
 litmus,S+relf+acqf,s+relf+acqf0.c,2,,0.03s
 litmus,S+rels+acq,s+rels+acq0.c,3,,0.03s
@@ -89,7 +89,7 @@ litmus,CoRR0,corr00.c,4,,0.03s
 litmus,CoRR0,corr01.c,4,,0.03s
 litmus,CoRR0,corr02.c,4,,0.03s
 litmus,CoRR0,corr0r.c,4,,0.03s
-litmus,peterZ,peterZ0.c,8,,0.03s
+litmus,peterZ,peterZ0.c,7,,0.03s
 litmus,viktor-relseq,viktor-relseq0.c,180,,0.04s
 litmus,SB+3sc+acq,sb+3sc+acq0.c,4,,0.03s
 litmus,2+2W+2sc+scf,2+2w+2sc+scf0.c,4,,0.03s
@@ -111,7 +111,7 @@ litmus,MP+relf+acq,mp+relf+acq0.c,2,,0.03s
 litmus,LB+addr-ind-fun,lb+addr-fun0.c,3,,0.03s
 litmus,LB+ctrl,lb+ctrl0.c,3,,0.03s
 litmus,fr+w+w+w+reads,fr+w+w+w+reads0.c,210,,0.03s
-litmus,psc-ar,psc-ar0.c,1,2,0.03s
+litmus,psc-ar,psc-ar0.c,0,2,0.03s
 litmus,SB,sb0.c,4,,0.03s
 litmus,SB,sb1.c,4,,0.03s
 litmus,CoRR2,corr20.c,72,,0.03s
@@ -154,6 +154,6 @@ litmus,MP+rel+acq,mp+rel+acq1.c,2,,0.03s
 litmus,SB+assert,SB+assert0.c,3,1,0.03s
 litmus,SB+assert,SB+assert1.c,3,1,0.03s
 litmus,TC2,tc20.c,4,,0.03s
-litmus,W+RWC,w+rwc0.c,8,,0.03s
+litmus,W+RWC,w+rwc0.c,7,,0.03s
 litmus,casdep,casdep0.c,2,,0.03s
-litmus,SB+2sc+scf,sb+2sc+scf0.c,4,,0.03s
+litmus,SB+2sc+scf,sb+2sc+scf0.c,3,,0.03s
