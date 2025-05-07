@@ -56,6 +56,8 @@ private:
 	void calcCORR();
 	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
+	void calcMObyFR();
+
 	EventLabel* getMinimalWrite(EventLabel* m, SAddr addr);
 
 	Calculator::GlobalRelation createPushto(std::vector<EventLabel*> domain);
