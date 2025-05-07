@@ -431,22 +431,16 @@ void HBCalculator::calcMObyFR() {
 		auto writeAccess = dynamic_cast<WriteLabel*>(pair.first);
 		if (!writeAccess) continue;
 
-		llvm::outs() << "Finding read accesses that happened after " << writeAccess->getPos() << "\n";
-
 		for (auto nextPair : sortedHbClocks) {
 			if (!isViewStrictlyGreater(hbClocks[nextPair.first], hbClocks[pair.first])) continue;
 			if (nextPair.first->getPos().isInitializer()) continue;
 
 			auto readAccess = dynamic_cast<ReadLabel*>(nextPair.first);
-			if (readAccess) {
+			if (readAccess && readAccess->getAddr() == writeAccess->getAddr()) {
 				auto writeRf = readAccess->getRf();
 				auto writeRfLabel = g.getWriteLabel(writeRf);
 
-				llvm::outs() << "found:	" << readAccess->getPos() << "\n";
-
 				if (writeRf == writeAccess->getPos()) continue;
-
-				if (readAccess->getAddr() != writeAccess->getAddr()) continue;
 
 				if (writeRf.isInitializer()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
