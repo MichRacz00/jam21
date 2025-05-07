@@ -435,7 +435,7 @@ void HBCalculator::calcMObyFR() {
 
 		for (auto nextPair : sortedHbClocks) {
 			if (!isViewStrictlyGreater(hbClocks[nextPair.first], hbClocks[pair.first])) continue;
-			if (!(hbClocks[pair.first][pair.first->getThread()] > hbClocks[nextPair.first][pair.first->getThread()])) continue;
+			if (!(hbClocks[pair.first][pair.first->getThread()] < hbClocks[nextPair.first][pair.first->getThread()])) continue;
 			if (nextPair.first->getPos().isInitializer()) continue;
 
 			llvm::outs() << "	" << nextPair.first->getPos() << hbClocks[nextPair.first] << "\n";
