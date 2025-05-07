@@ -431,9 +431,14 @@ void HBCalculator::calcMObyFR() {
 		auto writeAccess = dynamic_cast<WriteLabel*>(pair.first);
 		if (!writeAccess) continue;
 
+		llvm::outs() << pair.first->getPos() << hbClocks[pair.first] << "\n";
+
 		for (auto nextPair : sortedHbClocks) {
 			if (!isViewStrictlyGreater(hbClocks[nextPair.first], hbClocks[pair.first])) continue;
+			if (!(hbClocks[pair.first][pair.first->getThread()] > hbClocks[nextPair.first][pair.first->getThread()])) continue;
 			if (nextPair.first->getPos().isInitializer()) continue;
+
+			llvm::outs() << "	" << nextPair.first->getPos() << hbClocks[nextPair.first] << "\n";
 
 			auto readAccess = dynamic_cast<ReadLabel*>(nextPair.first);
 			if (readAccess && readAccess->getAddr() == writeAccess->getAddr()) {
@@ -444,11 +449,11 @@ void HBCalculator::calcMObyFR() {
 
 				if (writeRf.isInitializer()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
-					llvm::outs() << writeRf << " -mo-(rf)-> " << writeAccess->getPos() << "\n\n";
+					llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
 					break;
 				} else if (writeRfLabel && writeRfLabel->getAddr() == writeAccess->getAddr()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
-					llvm::outs() << writeRf << " -mo-(rf)-> " << writeAccess->getPos() << "\n\n";
+					llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
 					return;
 				}
 			}
