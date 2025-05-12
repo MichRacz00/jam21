@@ -10,14 +10,14 @@ void *thread_1(void *unused)
 
 void *thread_2(void *unused)
 {
-	atomic_fetch_add(&y, 1);
-	atomic_load_explicit(&y, memory_order_relaxed);
+	int y_local = atomic_fetch_add(&y, 1);
+	y_local = atomic_load_explicit(&y, memory_order_relaxed);
 	return NULL;
 }
 
 void *thread_3(void *unused)
 {
 	atomic_store(&y, 3);
-	atomic_load(&x);
+	int x_local = atomic_load(&x);
 	return NULL;
 }

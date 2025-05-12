@@ -44,8 +44,14 @@ bool CojomCalculator::isCojomAcyclic() {
 
 		// Calculate VO and cojom relations
 		calcTransC(&vvo);
+		//llvm::outs() << pushto;
 		auto vo = merge({vvo, calcPolocRelation()});
+		
 		auto cojom = calcCojom(vo);
+		
+		//llvm::outs() << getGraph();
+		//llvm::outs() << cojom;
+		//llvm::outs() << "================================================================================================================\n";
 
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity
@@ -406,7 +412,10 @@ Calculator::GlobalRelation CojomCalculator::calcCowr(GlobalRelation vo) {
 				// The final event is not a write
 				// This should not be triggered unless
 				// we have reached the initalizer event
-				tryAddEdge(elem, finalWriteElem, &cowr);
+				//tryAddEdge(elem, finalWriteElem, &cowr); //coment out to fail Szymanski
+				if (initialLab->getAddr() == middleReadLab->getAddr()) {
+					tryAddEdge(elem, finalWriteElem, &cowr);
+				}
 				continue;
 			}
 
@@ -504,10 +513,14 @@ Calculator::GlobalRelation CojomCalculator::calcCorr() {
 		if (initWrite == finalWrite) continue;
 
 		if (initWrite.isInitializer() || finalWrite.isInitializer()) {
-			// Either of the writes is an initializer, then we allways add corr edge
-			tryAddEdge(initWrite, finalWrite, &corr);
+			// Either of the writes is an initializer, then add corr edge if both reads
+			// read from the same address
+			//tryAddEdge(initWrite, finalWrite, &corr);
+			if (initReadLab->getAddr() == finalReadLab->getAddr()) {
+				tryAddEdge(initWrite, finalWrite, &corr);
+			}
 		} else {
-			// They are both not initializers
+			// They are both not initializers, shoul dnot happen
 			if (initWriteLab->getAddr() == finalWriteLab->getAddr()) {
 				tryAddEdge(initWrite, finalWrite, &corr);
 			}

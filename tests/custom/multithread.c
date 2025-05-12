@@ -11,42 +11,37 @@ void __VERIFIER_assume(int);
 
 void *thread_1(void *unused)
 {
-	atomic_store_explicit(&x, 2, memory_order_relaxed);
-	atomic_thread_fence(memory_order_seq_cst); //hwsync
-	
-	int y_local = atomic_load_explicit(&y, memory_order_relaxed);
-	__VERIFIER_assume(y_local == 0);
+	atomic_store_explicit(&x, 11, memory_order_relaxed);
+	atomic_store_explicit(&x, 12, memory_order_relaxed);
 	
 	return NULL;
 }
 
 void *thread_2(void *unused)
 {
-	atomic_store_explicit(&y, 1, memory_order_relaxed);
+	atomic_store_explicit(&x, 22, memory_order_relaxed);
+	atomic_store_explicit(&x, 23, memory_order_relaxed);
+	atomic_store_explicit(&x, 24, memory_order_relaxed);
+	atomic_store_explicit(&x, 25, memory_order_relaxed);
+
 	return NULL;
 }
 
 void *thread_3(void *unused)
 {
-	int y_local = atomic_load_explicit(&y, memory_order_relaxed);
-	__VERIFIER_assume(y_local == 1);
-	//atomic_thread_fence(memory_order_seq_cst); // lwsync fixed to hwsync
-	atomic_store_explicit(&x, 1, memory_order_relaxed);
+	atomic_store_explicit(&x, 31, memory_order_relaxed);
+	atomic_store_explicit(&x, 32, memory_order_relaxed);
+
 	return NULL;
 }
 
 void *thread_4(void *unused)
 {
-	int x_local = atomic_load_explicit(&x, memory_order_relaxed);
-	__VERIFIER_assume(x_local == 1);
+	atomic_store_explicit(&x, 41, memory_order_relaxed);
+	atomic_store_explicit(&x, 42, memory_order_relaxed);
 
-	atomic_thread_fence(memory_order_seq_cst); // hwsync
-
-	x_local = atomic_load_explicit(&x, memory_order_relaxed);
-	__VERIFIER_assume(x_local == 2);
 	return NULL;
 }
-
 
 int main()
 {

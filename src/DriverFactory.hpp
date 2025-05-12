@@ -26,6 +26,7 @@
 #include "LKMMDriver.hpp"
 #include "RC11Driver.hpp"
 #include "JAM21Driver.hpp"
+#include "JAM21VCDriver.hpp"
 #include <llvm/IR/Module.h>
 
 class DriverFactory {
@@ -53,6 +54,9 @@ class DriverFactory {
 			break;
 		case ModelType::jam21:
 			driver = new JAM21Driver(std::move(conf), std::forward<Ts>(params)...);
+			break;
+		case ModelType::jam21vc:
+			driver = new JAM21VCDriver(std::move(conf), std::forward<Ts>(params)...);
 			break;
 		default:
 			BUG();
