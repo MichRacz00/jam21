@@ -18,7 +18,7 @@ litmus,cumul-release,cumul-releas0.c,8,,0.03s
 litmus,RMWFix,rmwfix0.c,4,,0.03s
 litmus,2CoWR,2cowr0.c,4,,0.03s
 litmus,2CoWR,2cowr0r.c,4,,0.03s
-litmus,2CoWR,2cowr1.c,4,,0.03s
+litmus,2CoWR,2cowr1.c,4,,0.04s
 litmus,2CoWR,2cowr2.c,4,,0.03s
 litmus,2CoWR,2cowr3.c,4,,0.03s
 litmus,2CoWR,2cowr4.c,4,,0.03s
@@ -63,7 +63,7 @@ litmus,MP+rels+acq,mp+rels+acq1.c,3,,0.03s
 litmus,atomicpo,atomicpo0.c,4,,0.03s
 litmus,cii,cii0.c,6,,0.03s
 litmus,rii,rii0.c,3,,0.03s
-litmus,MPU+relf+acqf,expected.mo.in,3,,0.02s
+litmus,MPU+relf+acqf,expected.mo.in,3,,0.03s
 litmus,MPU+relf+acqf,expected.weakra.in,3,,0.02s
 litmus,MPU+relf+acqf,mpu+relf+acqf0.c,6,,0.03s
 litmus,small1,small10.c,8,,0.03s
@@ -89,7 +89,7 @@ litmus,CoRR0,corr00.c,4,,0.03s
 litmus,CoRR0,corr01.c,4,,0.03s
 litmus,CoRR0,corr02.c,4,,0.03s
 litmus,CoRR0,corr0r.c,4,,0.03s
-litmus,peterZ,peterZ0.c,7,,0.03s
+litmus,peterZ,peterZ0.c,8,,0.03s
 litmus,viktor-relseq,viktor-relseq0.c,180,,0.04s
 litmus,SB+3sc+acq,sb+3sc+acq0.c,4,,0.03s
 litmus,2+2W+2sc+scf,2+2w+2sc+scf0.c,4,,0.03s
@@ -110,7 +110,7 @@ litmus,MPU2+relf+acqf,mpu2+relf+acqf0.c,14,,0.03s
 litmus,MP+relf+acq,mp+relf+acq0.c,2,,0.03s
 litmus,LB+addr-ind-fun,lb+addr-fun0.c,3,,0.03s
 litmus,LB+ctrl,lb+ctrl0.c,3,,0.03s
-litmus,fr+w+w+w+reads,fr+w+w+w+reads0.c,210,,0.04s
+litmus,fr+w+w+w+reads,fr+w+w+w+reads0.c,210,,0.03s
 litmus,psc-ar,psc-ar0.c,0,2,0.03s
 litmus,SB,sb0.c,4,,0.03s
 litmus,SB,sb1.c,4,,0.03s
@@ -154,6 +154,6 @@ litmus,MP+rel+acq,mp+rel+acq1.c,2,,0.03s
 litmus,SB+assert,SB+assert0.c,3,1,0.03s
 litmus,SB+assert,SB+assert1.c,3,1,0.03s
 litmus,TC2,tc20.c,4,,0.03s
-litmus,W+RWC,w+rwc0.c,7,,0.03s
+litmus,W+RWC,w+rwc0.c,8,,0.03s
 litmus,casdep,casdep0.c,2,,0.03s
 litmus,SB+2sc+scf,sb+2sc+scf0.c,3,,0.03s

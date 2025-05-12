@@ -20,14 +20,14 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		allLabels.push_back(lab->getPos());
 	}
 
-	llvm::outs() << "\n\n ====================== Model checking " << " linearisations: ======================\n";
+	//llvm::outs() << "\n\n ====================== Model checking " << " linearisations: ======================\n";
 
 	calcHB();
 
 	auto pushtoRel = createPushto(domainPushto);
 	auto pushtos = calcAllLinearisations(pushtoRel);
 
-	llvm::outs() << getGraph();
+	//llvm::outs() << getGraph();
 
 	auto &g = getGraph();
 
@@ -37,8 +37,8 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		std::unordered_map<EventLabel*, View> copyHbClocks (hbClocks);
 		std::unordered_map<EventLabel*, View> updatedHbClocks (hbClocks);
 
-		llvm::outs() << "Linearisation:\n";
-		llvm::outs() << p;
+		//llvm::outs() << "Linearisation:\n";
+		//llvm::outs() << p;
 
 		for (auto init : p.getElems()) {
 			for (auto final : p.getElems()) {
@@ -59,7 +59,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		calcMObyFR();
 		//calcCORR();
 
-		llvm::outs() << cojom;
+		//llvm::outs() << cojom;
 
 		cojom.transClosure();
 		if (cojom.isIrreflexive()) {
@@ -68,7 +68,7 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 		hbClocks = copyHbClocks;
 	}
 
-	llvm::outs() << "Inconsistent!\n";
+	//llvm::outs() << "Inconsistent!\n";
 	return Calculator::CalculationResult(false, false);
 }
 
@@ -105,7 +105,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 
 	std::unordered_map<SAddr, View> baseViews;
 
-	llvm::outs() << " --- " << tid << " --- \n";
+	//llvm::outs() << " --- " << tid << " --- \n";
 
     for (auto &lab : thread) {
 		// Keep track of 4 previous labels
@@ -132,9 +132,9 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 			if (hbClocks[labRf].empty()) {
 				// Write VC not yet calculated, calculate it and return
 				
-				llvm::outs() << " --- to thread " << rfTid << " --- \n";
+				//llvm::outs() << " --- to thread " << rfTid << " --- \n";
 				calcHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
-				llvm::outs() << " --- return --- \n";
+				//llvm::outs() << " --- return --- \n";
 			}
 
 			// Merge read and write VCs related by RF
@@ -165,10 +165,10 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 			baseViews[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
-		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
+		//llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
 		if (previousLabels[0] == halt) {
 			// Reached the last event specified, end calculations
-			llvm::outs() << " --- halt --- \n";
+			//llvm::outs() << " --- halt --- \n";
 			return;
 		}
     }
@@ -353,11 +353,11 @@ bool HBCalculator::calcFR() {
 					int writeTid = writeAccess->getThread();
 					if (r->getThread() == writeTid) continue;
 
-					llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
+					//llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
 
 					if (updatedHbClocks[r][writeTid] > updatedHbClocks[writeAccess][writeTid]) {
-						llvm::outs() << updatedHbClocks[r] << updatedHbClocks[writeAccess] << "\n";
-						llvm::outs() << "Incorrect fr edge\n";
+						//llvm::outs() << updatedHbClocks[r] << updatedHbClocks[writeAccess] << "\n";
+						//llvm::outs() << "Incorrect fr edge\n";
 						return false;
 					} else {
 						updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
@@ -371,7 +371,7 @@ bool HBCalculator::calcFR() {
 
 					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
 						for (auto r : previousWrite->getReadersList()) {
-							llvm::outs() << r << " -fr-> " << writeAccess->getPos() << "\n";
+							//llvm::outs() << r << " -fr-> " << writeAccess->getPos() << "\n";
 							updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[g.getEventLabel(r)]);
 						}
 						// Erase events with View that is in HB of the current write access
@@ -431,14 +431,14 @@ void HBCalculator::calcMObyFR() {
 		auto writeAccess = dynamic_cast<WriteLabel*>(pair.first);
 		if (!writeAccess) continue;
 
-		llvm::outs() << pair.first->getPos() << hbClocks[pair.first] << "\n";
+		//llvm::outs() << pair.first->getPos() << hbClocks[pair.first] << "\n";
 
 		for (auto nextPair : sortedHbClocks) {
 			if (!isViewStrictlyGreater(hbClocks[nextPair.first], hbClocks[pair.first])) continue;
 			if (!(hbClocks[pair.first][pair.first->getThread()] < hbClocks[nextPair.first][pair.first->getThread()])) continue;
 			if (nextPair.first->getPos().isInitializer()) continue;
 
-			llvm::outs() << "	" << nextPair.first->getPos() << hbClocks[nextPair.first] << "\n";
+			//llvm::outs() << "	" << nextPair.first->getPos() << hbClocks[nextPair.first] << "\n";
 
 			auto readAccess = dynamic_cast<ReadLabel*>(nextPair.first);
 			if (readAccess && readAccess->getAddr() == writeAccess->getAddr()) {
@@ -449,11 +449,11 @@ void HBCalculator::calcMObyFR() {
 
 				if (writeRf.isInitializer()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
-					llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
+					//llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
 					break;
 				} else if (writeRfLabel && writeRfLabel->getAddr() == writeAccess->getAddr()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
-					llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
+					//llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
 					return;
 				}
 			}
@@ -502,7 +502,7 @@ void HBCalculator::calcMO() {
 						mo[addr] = std::vector<WriteLabel*> {writeAccess};
 					}
 
-					llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
+					//llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 					mo[addr].push_back(writeAccess);
 					cojom.addEdge(previousWrite->getPos(), writeAccess->getPos());
 				}
@@ -512,7 +512,7 @@ void HBCalculator::calcMO() {
 			
 			if (previousWrites[addr].empty()) {
 				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
-				llvm::outs() << "(0, 0) -mo-> " << writeAccess->getPos() << "\n";
+				//llvm::outs() << "(0, 0) -mo-> " << writeAccess->getPos() << "\n";
 			}
 
 			previousWrites[addr].insert(writeAccess);
@@ -587,20 +587,20 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 			continue;
 		}
 
-		llvm::outs() << "Current minimal label " << minimalLabel->getPos() << "\n";
+		//llvm::outs() << "Current minimal label " << minimalLabel->getPos() << "\n";
 
 		if (!isViewStrictlySmaller(pair.second, hbClocks[minimalLabel])) {
 			continue;
 		}
 
-		llvm::outs() << pair.first->getPos() << minimalLabel->getPos() << "\n";
-		llvm::outs() << pair.second << " < " << hbClocks[minimalLabel] << "\n";
+		//llvm::outs() << pair.first->getPos() << minimalLabel->getPos() << "\n";
+		//llvm::outs() << pair.second << " < " << hbClocks[minimalLabel] << "\n";
 		minimalLabel = pair.first;
 
 		auto writeAccess = dynamic_cast<WriteLabel*> (pair.first);
 		if (writeAccess) {
 			if (writeAccess->getAddr() == addr && isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
-				llvm::outs() << "found write access previously in HB " << writeAccess->getPos() << "\n";
+				//llvm::outs() << "found write access previously in HB " << writeAccess->getPos() << "\n";
 				return writeAccess;
 			}
 		}
@@ -611,7 +611,7 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 			auto writeRf = dynamic_cast<WriteLabel*>(rf);
 			
 			if (readAccess->getAddr() == addr) {
-				llvm::outs() << "returning write access by rf\n";
+				//llvm::outs() << "returning write access by rf\n";
 				return rf;
 			}
 
@@ -619,7 +619,7 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 		}
 	}
 
-	llvm::outs() << "iterated over all accesses\n";
+	//llvm::outs() << "iterated over all accesses\n";
 
 	return g.getEventLabel(m->getPos().getInitializer()); // todo change to previousWrite
 }
@@ -657,7 +657,7 @@ void HBCalculator::calcCORR() {
 				auto previousRead = *it;
 				if (previousRead->getRf() == readAccess->getRf()) { ++it; continue; }
 
-				llvm::outs() << readAccess->getPos() << pair.second << "\n";
+				//llvm::outs() << readAccess->getPos() << pair.second << "\n";
 
 				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousRead])) {
 					if (corr.find(addr) == corr.end()) {
@@ -665,11 +665,11 @@ void HBCalculator::calcCORR() {
 						corr[addr] = std::vector<EventLabel*> {g.getEventLabel(previousRead->getRf())};
 					}
 
-					llvm::outs() << previousRead->getRf() << " -corr-> " << readAccess->getRf() << "\n";
-					llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())] << hbClocks[g.getEventLabel(readAccess->getRf())] << "\n";
+					//llvm::outs() << previousRead->getRf() << " -corr-> " << readAccess->getRf() << "\n";
+					//llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())] << hbClocks[g.getEventLabel(readAccess->getRf())] << "\n";
 
 					int startTid = previousRead->getRf().thread;
-					llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())][startTid] << " <= " << hbClocks[g.getEventLabel(readAccess->getRf())][startTid] << "\n";
+					//llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())][startTid] << " <= " << hbClocks[g.getEventLabel(readAccess->getRf())][startTid] << "\n";
 
 					cojom.addEdge(previousRead->getRf(), readAccess->getRf());
 					corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
@@ -760,7 +760,7 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
         return false; // equal views
     });
 
-	llvm::outs() << "\n";
+	//llvm::outs() << "\n";
 
 	for (auto pair : sortedHbClocks) {
 		if ((!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first)) continue;
