@@ -31,6 +31,15 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 
 	auto &g = getGraph();
 
+	int eventNum = 0;
+	for (auto& t : g.getThreadList()) {
+    	for (auto& e : t) {
+        	eventNum += 1;
+    	}
+	}
+	llvm::outs() << eventNum << ", " << pushtos.size() << "\n";
+	eventNum = 0;
+
 	for (auto p : pushtos) {
 		Calculator::GlobalRelation c(allLabels);
 		cojom = c;

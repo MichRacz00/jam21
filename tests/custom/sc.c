@@ -31,14 +31,24 @@ void *thread_3(void *unused)
 	return NULL;
 }
 
+void *thread_4(void *unused)
+{
+	atomic_store_explicit(&x, 6, memory_order_seq_cst);
+	atomic_store_explicit(&y, 7, memory_order_seq_cst);
+	atomic_load_explicit(&y, memory_order_seq_cst);
+	return NULL;
+}
+
 
 int main()
 {
-	pthread_t t1, t2, t3;
+	pthread_t t1, t2, t3, t4;
 
 	if (pthread_create(&t1, NULL, thread_1, NULL))
 		abort();
 	if (pthread_create(&t2, NULL, thread_2, NULL))
+		abort();
+	if (pthread_create(&t3, NULL, thread_3, NULL))
 		abort();
 	if (pthread_create(&t3, NULL, thread_3, NULL))
 		abort();

@@ -2,7 +2,7 @@
 
 # Define variables
 BINARY="./src/genmc"
-ROOT_DIR="./tests/correct/data-structures"
+ROOT_DIR="./tests/correct/synthetic"
 RESULTS_FILE="benchmark_results.csv"
 
 # Clear log file
