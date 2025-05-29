@@ -24,6 +24,14 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 
 	calcHB();
 
+	llvm::outs() << " ================== \n";
+	for (auto linearisation : linearisations) {
+		for (auto l : linearisation) {
+			llvm::outs() << l->getPos();
+		}
+		llvm::outs() << "\n";
+	}
+
 	auto pushtoRel = createPushto(domainPushto);
 	auto pushtos = calcAllLinearisations(pushtoRel);
 
@@ -73,7 +81,7 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 }
 
 void VCCalculator::addToLinearisation(EventLabel* e) {
-	llvm::outs() << "inserting: " << e->getPos() << "\n";
+	//llvm::outs() << "inserting: " << e->getPos() << "\n";
 
 	if (linearisations.empty()) {
 		std::vector<EventLabel*> l;
@@ -82,25 +90,62 @@ void VCCalculator::addToLinearisation(EventLabel* e) {
 		return;
 	}
 
-	for (auto linearisation : linearisations) {
-		std::vector<EventLabel*> newLinearisation;
+	std::vector<std::vector<EventLabel*>> newLinearisations;
 
-		for (auto it = linearisation.rbegin(); it != linearisation.rend(); ++it) {
-			EventLabel* linearisedEvent = *it;
-			newLinearisation.push_back(linearisedEvent);
+	while (!linearisations.empty()) {
+		std::vector<EventLabel*> linearisation = std::move(linearisations.back());
+		linearisations.pop_back();
+		std::vector<EventLabel*> restLinearisation;
 
-			//llvm::outs() << linearisedEvent->getPos() << linearisedEvent->getPorfView() << " ? " << e->getPos() << e->getPorfView() << "\n";
-			if (isViewStrictlyGreater(e->getPorfView(), linearisedEvent->getPorfView())) {
-				//llvm::outs() << e->getPos() << " < " << linearisedEvent->getPos() << "\n";
-				newLinearisation.push_back(e);
-			}
+		llvm::outs() << "---------------------------------------\n";
+		llvm::outs() << e->getPos() << " -> ";
+		for (auto l : linearisation) {
+			llvm::outs() << l->getPos();
 		}
+		llvm::outs() << "\n\n";
 
-		for (auto e : newLinearisation) {
-			llvm::outs() << e->getPos();
+		auto newLinearisation = linearisation;
+		newLinearisation.push_back(e);
+		for (auto n : newLinearisation) {
+			llvm::outs() << n->getPos();
 		}
 		llvm::outs() << "\n";
+		newLinearisations.push_back(newLinearisation);
+
+		while(!linearisation.empty()) {
+			auto linearisedEvent = std::move(linearisation.back());
+
+			restLinearisation.push_back(linearisedEvent);
+			linearisation.pop_back();
+
+			if (isViewStrictlyGreater(e->getPorfView(), linearisedEvent->getPorfView())) {
+				break;
+			}
+
+			std::vector<EventLabel*> newLinearisation;
+
+			for (auto l : linearisation) {
+   				newLinearisation.push_back(l);
+				llvm::outs() << l->getPos();
+			}
+			newLinearisation.push_back(e);
+			llvm::outs() << " | " << e->getPos() <<  " | ";
+			for (auto it = restLinearisation.rbegin(); it != restLinearisation.rend(); ++it) {
+				newLinearisation.push_back(*it);
+				llvm::outs() << (*it)->getPos();
+			}
+			llvm::outs() << "\n";
+
+			for (auto le : newLinearisation) {
+				llvm::outs() << le->getPos();
+			}
+			llvm::outs() << "\n";
+			
+        	newLinearisations.push_back(newLinearisation);
+		}
 	}
+
+	linearisations = newLinearisations;
 }
 
 void VCCalculator::removeAfter(const VectorClock &preds)
