@@ -50,7 +50,7 @@ int main()
 		abort();
 	if (pthread_create(&t3, NULL, thread_3, NULL))
 		abort();
-	if (pthread_create(&t3, NULL, thread_3, NULL))
+	if (pthread_create(&t4, NULL, thread_3, NULL))
 		abort();
 
 	

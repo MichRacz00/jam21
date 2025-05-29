@@ -92,7 +92,9 @@ libgenmc_a_SOURCES = \
   JAM21Driver.hpp JAM21Driver.cpp \
   CojomCalculator.hpp CojomCalculator.cpp \
   JAM21VCDriver.hpp JAM21VCDriver.cpp \
-  HBCalculator.hpp HBCalculator.cpp
+  HBCalculator.hpp HBCalculator.cpp \
+  JAM21VCFullDriver.hpp JAM21VCFullDriver.cpp \
+  VCCalculator.hpp VCCalculator.cpp
 
 
 AM_CXXFLAGS = -Wno-unknown-warning-option -DINCLUDE_DIR=\"$(pkgincludedir)/$(pkg)\" -DSRC_INCLUDE_DIR=\"$(abs_top_builddir)/include\"

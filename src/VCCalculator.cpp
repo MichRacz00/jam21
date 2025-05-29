@@ -1,18 +1,18 @@
- #include "HBCalculator.hpp"
+ #include "VCCalculator.hpp"
 #include "Error.hpp"
 #include "ExecutionGraph.hpp"
 #include "GraphIterators.hpp"
 #include <map>
 #include <deque>
 
-void HBCalculator::initCalc()
+void VCCalculator::initCalc()
 {
 	// Relations are calculated from scratch everytime doCalc()
 	// is called, nothing to do on init
 	return;
 }
 
-Calculator::CalculationResult HBCalculator::doCalc() {
+Calculator::CalculationResult VCCalculator::doCalc() {
 	resetViews();
 
 	std::vector<Event> allLabels;
@@ -72,13 +72,13 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 	return Calculator::CalculationResult(false, false);
 }
 
-void HBCalculator::removeAfter(const VectorClock &preds)
+void VCCalculator::removeAfter(const VectorClock &preds)
 {
 	/* We do not track anything specific */
 	return;
 }
 
-void HBCalculator::calcHB() {
+void VCCalculator::calcHB() {
 	auto &g = getGraph();
 
 	for (auto &t : g.getThreadList()) {
@@ -86,7 +86,7 @@ void HBCalculator::calcHB() {
 	}
 }
 
-void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
+void VCCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 	std::deque<EventLabel*> previousLabels;
 	std::unordered_map<SAddr, View> previousAccess;
@@ -174,7 +174,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
     }
 }
 
-void HBCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels) {
+void VCCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels) {
 	auto tid = lab->getThread();
 
 	if (previousLabels.size() >= 2 && previousLabels[1]->isSC() && previousLabels[0]->isSC()) {
@@ -214,7 +214,7 @@ void HBCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> pr
 	}
 }
 
-View HBCalculator::mergeViews(const View a, const View b) {
+View VCCalculator::mergeViews(const View a, const View b) {
 	auto max_size = std::max(a.size(), b.size());
     View mergedView;
 	
@@ -225,7 +225,7 @@ View HBCalculator::mergeViews(const View a, const View b) {
 	return mergedView;
 }
 
-Calculator::GlobalRelation HBCalculator::createPushto(std::vector<EventLabel*> domain) {
+Calculator::GlobalRelation VCCalculator::createPushto(std::vector<EventLabel*> domain) {
 	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> domainClocks;
 	for (auto d : domain) {
@@ -267,7 +267,7 @@ Calculator::GlobalRelation HBCalculator::createPushto(std::vector<EventLabel*> d
 	return pushto;
 }
 
-std::vector<Calculator::GlobalRelation> HBCalculator::calcAllLinearisations(GlobalRelation rel) {
+std::vector<Calculator::GlobalRelation> VCCalculator::calcAllLinearisations(GlobalRelation rel) {
 	std::vector<GlobalRelation> pushtos;
 
 	rel.allTopoSort([this, &pushtos](auto& sort) {
@@ -314,7 +314,7 @@ std::vector<Calculator::GlobalRelation> HBCalculator::calcAllLinearisations(Glob
 	return pushtos;
 }
 
-bool HBCalculator::calcFR() {
+bool VCCalculator::calcFR() {
 	auto &g = getGraph();
 
 	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
@@ -390,7 +390,7 @@ bool HBCalculator::calcFR() {
 	return true;
 }
 
-std::unordered_map<SAddr, std::set<EventLabel*>> HBCalculator::getInitReadersList() {
+std::unordered_map<SAddr, std::set<EventLabel*>> VCCalculator::getInitReadersList() {
 	auto &g = getGraph();
 	std::unordered_map<SAddr, std::set<EventLabel*>> initReadersList;
 
@@ -405,7 +405,7 @@ std::unordered_map<SAddr, std::set<EventLabel*>> HBCalculator::getInitReadersLis
 	return initReadersList;
 }
 
-void HBCalculator::calcMObyFR() {
+void VCCalculator::calcMObyFR() {
 	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
@@ -461,7 +461,7 @@ void HBCalculator::calcMObyFR() {
 	}
 }
 
-void HBCalculator::calcMO() {
+void VCCalculator::calcMO() {
 	auto &g = getGraph();
 	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
@@ -545,7 +545,7 @@ void HBCalculator::calcMO() {
 	}
 }
 
-EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
+EventLabel* VCCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 
@@ -624,7 +624,7 @@ EventLabel* HBCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
 	return g.getEventLabel(m->getPos().getInitializer()); // todo change to previousWrite
 }
 
-void HBCalculator::calcCORR() {
+void VCCalculator::calcCORR() {
 	std::unordered_map<SAddr, std::set<ReadLabel*>> previousReads;
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
 	auto &g = getGraph();
@@ -692,7 +692,7 @@ void HBCalculator::calcCORR() {
 	}
 }
 
-bool HBCalculator::checkMoCoherence(WriteLabel* start, WriteLabel* end) {
+bool VCCalculator::checkMoCoherence(WriteLabel* start, WriteLabel* end) {
 	auto co = getGraph().getCoherenceCalculator();
 	auto const addr = start->getAddr();
 
@@ -708,7 +708,7 @@ bool HBCalculator::checkMoCoherence(WriteLabel* start, WriteLabel* end) {
 	return false;	
 }
 
-bool HBCalculator::isViewStrictlyGreater(View a, View b) {
+bool VCCalculator::isViewStrictlyGreater(View a, View b) {
 	int size = std::max(a.size(), b.size());
 	bool strictlyGreaterFound = false;
 
@@ -723,7 +723,7 @@ bool HBCalculator::isViewStrictlyGreater(View a, View b) {
     return strictlyGreaterFound;
 }
 
-bool HBCalculator::isViewStrictlySmaller(View a, View b) {
+bool VCCalculator::isViewStrictlySmaller(View a, View b) {
 	int size = std::max(a.size(), b.size());
 	bool strictlySmallerFound = false;
 
@@ -738,7 +738,7 @@ bool HBCalculator::isViewStrictlySmaller(View a, View b) {
     return strictlySmallerFound;
 }
 
-void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
+void VCCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
 	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(newHbClock.begin(), newHbClock.end());
 
@@ -768,7 +768,7 @@ void HBCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &new
 	}
 }
 
-bool HBCalculator::isFence(EventLabel *lab) {
+bool VCCalculator::isFence(EventLabel *lab) {
 	switch (lab->getKind())
 	{
 		case EventLabel::EL_Fence:
@@ -781,7 +781,7 @@ bool HBCalculator::isFence(EventLabel *lab) {
 	}
 }
 
-void HBCalculator::resetViews() {
+void VCCalculator::resetViews() {
 	hbClocks.clear();
 	moClocks.clear();
 	mo.clear();
