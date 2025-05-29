@@ -72,6 +72,37 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 	return Calculator::CalculationResult(false, false);
 }
 
+void VCCalculator::addToLinearisation(EventLabel* e) {
+	llvm::outs() << "inserting: " << e->getPos() << "\n";
+
+	if (linearisations.empty()) {
+		std::vector<EventLabel*> l;
+		l.push_back(e);
+		linearisations.push_back(l);
+		return;
+	}
+
+	for (auto linearisation : linearisations) {
+		std::vector<EventLabel*> newLinearisation;
+
+		for (auto it = linearisation.rbegin(); it != linearisation.rend(); ++it) {
+			EventLabel* linearisedEvent = *it;
+			newLinearisation.push_back(linearisedEvent);
+
+			//llvm::outs() << linearisedEvent->getPos() << linearisedEvent->getPorfView() << " ? " << e->getPos() << e->getPorfView() << "\n";
+			if (isViewStrictlyGreater(e->getPorfView(), linearisedEvent->getPorfView())) {
+				//llvm::outs() << e->getPos() << " < " << linearisedEvent->getPos() << "\n";
+				newLinearisation.push_back(e);
+			}
+		}
+
+		for (auto e : newLinearisation) {
+			llvm::outs() << e->getPos();
+		}
+		llvm::outs() << "\n";
+	}
+}
+
 void VCCalculator::removeAfter(const VectorClock &preds)
 {
 	/* We do not track anything specific */
@@ -105,7 +136,7 @@ void VCCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 
 	std::unordered_map<SAddr, View> baseViews;
 
-	llvm::outs() << " --- " << tid << " --- \n";
+	//llvm::outs() << " --- " << tid << " --- \n";
 
     for (auto &lab : thread) {
 		// Keep track of 4 previous labels
@@ -146,17 +177,6 @@ void VCCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		// in this thread (po-loc)
 		
 		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		/*
-		if (memAccessLab) {
-			if (previousAccess.find(memAccessLab->getAddr()) != previousAccess.end()) {
-				hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccess[memAccessLab->getAddr()]);
-				if (hbClocks[previousLabels[0]] <= previousAccess[memAccessLab->getAddr()]) {
-					hbClocks[previousLabels[0]][tid] += 1;
-				}
-			}
-			previousAccess[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
-		}*/
-
 		calcIntraThreadHB(lab.get(), previousLabels);
 
 		if (memAccessLab) {
@@ -165,7 +185,7 @@ void VCCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 			baseViews[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
-		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
+		//llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
 		if (previousLabels[0] == halt) {
 			// Reached the last event specified, end calculations
 			//llvm::outs() << " --- halt --- \n";
@@ -183,6 +203,7 @@ void VCCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> pr
 		currentHbClock[tid] += 1;
 		hbClocks[previousLabels[0]] = currentHbClock;
 		domainPushto.push_back(previousLabels[1]);
+		addToLinearisation(previousLabels[1]);
 	}
 
 	if (previousLabels.size() >= 3 && previousLabels[1]->isSC() && isFence(previousLabels[1])) {
@@ -192,6 +213,7 @@ void VCCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> pr
 		currentHbClock[tid] += 2;
 		hbClocks[previousLabels[0]] = currentHbClock;
 		domainPushto.push_back(previousLabels[2]);
+		addToLinearisation(previousLabels[2]);
 	}
 
 	if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
@@ -787,4 +809,5 @@ void VCCalculator::resetViews() {
 	mo.clear();
 	corr.clear();
 	domainPushto.clear();
+	linearisations.clear();
 }

@@ -24,7 +24,7 @@
  #include "Interpreter.h"
  #include "ExecutionGraph.hpp"
  #include "GraphIterators.hpp"
- #include "HBCalculator.hpp"
+ #include "VCCalculator.hpp"
  #include "PersistencyChecker.hpp"
  
  #include "PSCCalculator.hpp"
@@ -35,7 +35,7 @@
  {
 	 auto &g = getGraph();
 	 
-	 g.addCalculator(std::make_unique<HBCalculator>(g),
+	 g.addCalculator(std::make_unique<VCCalculator>(g),
 			 ExecutionGraph::RelationId::hb, false);
 	 
 	 return;

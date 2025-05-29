@@ -56,7 +56,8 @@ private:
 	void calcCORR();
 	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
-	std::vector<EventLabel*> linearise(std::vector<EventLabel*>);
+	std::vector<std::vector<EventLabel*>> linearisations;
+	void addToLinearisation(EventLabel* e);
 
 	void calcMObyFR();
 
