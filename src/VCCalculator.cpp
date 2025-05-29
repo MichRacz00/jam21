@@ -24,18 +24,8 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 
 	calcHB();
 
-	llvm::outs() << " ================== \n";
-	for (auto linearisation : linearisations) {
-		for (auto l : linearisation) {
-			llvm::outs() << l->getPos();
-		}
-		llvm::outs() << "\n";
-	}
-
 	auto pushtoRel = createPushto(domainPushto);
 	auto pushtos = calcAllLinearisations(pushtoRel);
-
-	//llvm::outs() << getGraph();
 
 	auto &g = getGraph();
 
@@ -81,8 +71,6 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 }
 
 void VCCalculator::addToLinearisation(EventLabel* e) {
-	//llvm::outs() << "inserting: " << e->getPos() << "\n";
-
 	if (linearisations.empty()) {
 		std::vector<EventLabel*> l;
 		l.push_back(e);
@@ -97,19 +85,10 @@ void VCCalculator::addToLinearisation(EventLabel* e) {
 		linearisations.pop_back();
 		std::vector<EventLabel*> restLinearisation;
 
-		llvm::outs() << "---------------------------------------\n";
-		llvm::outs() << e->getPos() << " -> ";
-		for (auto l : linearisation) {
-			llvm::outs() << l->getPos();
-		}
-		llvm::outs() << "\n\n";
-
+		// Add trivial linearisation - addition of event at the very back
+		// Cannot violate po U rf as this would not be accepted in GenMC
 		auto newLinearisation = linearisation;
 		newLinearisation.push_back(e);
-		for (auto n : newLinearisation) {
-			llvm::outs() << n->getPos();
-		}
-		llvm::outs() << "\n";
 		newLinearisations.push_back(newLinearisation);
 
 		while(!linearisation.empty()) {
@@ -118,28 +97,25 @@ void VCCalculator::addToLinearisation(EventLabel* e) {
 			restLinearisation.push_back(linearisedEvent);
 			linearisation.pop_back();
 
+			// Encountere event in po U rf, no more valid linearisations will be created
 			if (isViewStrictlyGreater(e->getPorfView(), linearisedEvent->getPorfView())) {
 				break;
 			}
 
 			std::vector<EventLabel*> newLinearisation;
 
+			// add all events before e
 			for (auto l : linearisation) {
    				newLinearisation.push_back(l);
-				llvm::outs() << l->getPos();
 			}
+
+			// insert e
 			newLinearisation.push_back(e);
-			llvm::outs() << " | " << e->getPos() <<  " | ";
+
+			// add all events after e
 			for (auto it = restLinearisation.rbegin(); it != restLinearisation.rend(); ++it) {
 				newLinearisation.push_back(*it);
-				llvm::outs() << (*it)->getPos();
 			}
-			llvm::outs() << "\n";
-
-			for (auto le : newLinearisation) {
-				llvm::outs() << le->getPos();
-			}
-			llvm::outs() << "\n";
 			
         	newLinearisations.push_back(newLinearisation);
 		}
