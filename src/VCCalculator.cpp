@@ -29,35 +29,48 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 
 	auto &g = getGraph();
 
-	for (auto p : pushtos) {
+	/*
+	if (linearisations.size() != pushtos.size()) {
+		for (auto l : linearisations) {
+			for (auto e : l) {
+				llvm::outs() << e->getPos();
+			}
+			llvm::outs() << "\n";
+		}
+		llvm::outs() << "\n----------------------------------\n";
+
+		for (auto p : pushtos) {
+			for (auto e : p.getElems()) {
+				llvm::outs() << e;
+			}
+			llvm::outs() << "\n";
+		}
+
+		llvm::outs() << "============================================\n";
+	}
+	*/
+		
+
+	for (auto l : linearisations) {
 		Calculator::GlobalRelation c(allLabels);
 		cojom = c;
 		std::unordered_map<EventLabel*, View> copyHbClocks (hbClocks);
 		std::unordered_map<EventLabel*, View> updatedHbClocks (hbClocks);
 
-		//llvm::outs() << "Linearisation:\n";
-		//llvm::outs() << p;
+		for (size_t i = 0; i < l.size() - 1; ++i) {
+    		auto init = l[i];
+    		auto final = l[i + 1];
 
-		for (auto init : p.getElems()) {
-			for (auto final : p.getElems()) {
-				if (!p(init, final)) {
-					continue;
-				}
+			auto pushtoView = View(hbClocks[init]);
+			pushtoView[init->getThread()] += 1;
 
-				auto pushtoView = View(hbClocks[g.getEventLabel(init)]);
-				pushtoView[init.thread] += 1;
-
-				updateHBClockChain(updatedHbClocks, g.getEventLabel(final), pushtoView);
-			}
+    		updateHBClockChain(updatedHbClocks, final, pushtoView);
 		}
 
 		hbClocks = updatedHbClocks;
 
 		calcMO();
 		calcMObyFR();
-		//calcCORR();
-
-		//llvm::outs() << cojom;
 
 		cojom.transClosure();
 		if (cojom.isIrreflexive()) {
@@ -66,7 +79,6 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 		hbClocks = copyHbClocks;
 	}
 
-	//llvm::outs() << "Inconsistent!\n";
 	return Calculator::CalculationResult(false, false);
 }
 
