@@ -51,25 +51,14 @@ private:
 	void calcHB();
 	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
-	bool calcFR();
 	void calcMO();
-	void calcCORR();
-	bool checkMoCoherence(WriteLabel* start, WriteLabel* end);
 
 	std::vector<std::vector<EventLabel*>> linearisations;
 	void addToLinearisation(EventLabel* e);
 
 	void calcMObyFR();
 
-	EventLabel* getMinimalWrite(EventLabel* m, SAddr addr);
-
-	Calculator::GlobalRelation createPushto(std::vector<EventLabel*> domain);
-	std::vector<Calculator::GlobalRelation> calcAllLinearisations(GlobalRelation rel);
-
-	void addFRtoHB(WriteLabel* labOut, WriteLabel* labIn);
 	void updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClocks, EventLabel* start, View newView);
-	std::unordered_map<SAddr, std::set<EventLabel*>> getInitReadersList();
-
 	View mergeViews(const View a, const View b);
 	bool isViewStrictlyGreater(const View a, const View b);
 	bool isViewStrictlySmaller(const View a, const View b);

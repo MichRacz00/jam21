@@ -19,43 +19,25 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 	for (auto lab : labels(getGraph())) {
 		allLabels.push_back(lab->getPos());
 	}
-
-	//llvm::outs() << "\n\n ====================== Model checking " << " linearisations: ======================\n";
-
+	
 	calcHB();
-
-	auto pushtoRel = createPushto(domainPushto);
-	auto pushtos = calcAllLinearisations(pushtoRel);
 
 	auto &g = getGraph();
 
-	/*
-	if (linearisations.size() != pushtos.size()) {
-		for (auto l : linearisations) {
-			for (auto e : l) {
-				llvm::outs() << e->getPos();
-			}
-			llvm::outs() << "\n";
-		}
-		llvm::outs() << "\n----------------------------------\n";
-
-		for (auto p : pushtos) {
-			for (auto e : p.getElems()) {
-				llvm::outs() << e;
-			}
-			llvm::outs() << "\n";
-		}
-
-		llvm::outs() << "============================================\n";
-	}
-	*/
-		
+	llvm::outs() << linearisations.size() << "\n";
 
 	for (auto l : linearisations) {
 		Calculator::GlobalRelation c(allLabels);
 		cojom = c;
-		std::unordered_map<EventLabel*, View> copyHbClocks (hbClocks);
+		std::unordered_map<EventLabel*, View> cleanHbClocks (hbClocks);
 		std::unordered_map<EventLabel*, View> updatedHbClocks (hbClocks);
+
+		
+		for (auto e : l) {
+			llvm::outs() << e->getPos();
+		}
+		llvm::outs() << "\n";
+		
 
 		for (size_t i = 0; i < l.size() - 1; ++i) {
     		auto init = l[i];
@@ -74,11 +56,25 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 
 		cojom.transClosure();
 		if (cojom.isIrreflexive()) {
-			return Calculator::CalculationResult(false, true);
+			//return Calculator::CalculationResult(false, true);
 		}
-		hbClocks = copyHbClocks;
+		hbClocks = cleanHbClocks;
 	}
 
+	if (linearisations.size() == 0) {
+		Calculator::GlobalRelation c(allLabels);
+		cojom = c;
+
+		calcMO();
+		calcMObyFR();
+
+		cojom.transClosure();
+		if (cojom.isIrreflexive()) {
+			return Calculator::CalculationResult(false, true);
+		}
+	}
+
+	return CalculationResult(false, true);
 	return Calculator::CalculationResult(false, false);
 }
 
@@ -101,7 +97,21 @@ void VCCalculator::addToLinearisation(EventLabel* e) {
 		// Cannot violate po U rf as this would not be accepted in GenMC
 		auto newLinearisation = linearisation;
 		newLinearisation.push_back(e);
-		newLinearisations.push_back(newLinearisation);
+		//newLinearisations.push_back(newLinearisation);
+
+		auto previousPoRfView = View();
+		auto increasingLinearisation = true;
+		for (auto l : newLinearisation) {
+			if (isViewStrictlySmaller(l->getPorfView(), previousPoRfView)) {
+				increasingLinearisation = false;
+				break;
+			}
+			previousPoRfView = l->getPorfView();
+		}
+
+		if (increasingLinearisation) {
+			newLinearisations.push_back(newLinearisation);
+		}
 
 		while(!linearisation.empty()) {
 			auto linearisedEvent = std::move(linearisation.back());
@@ -109,7 +119,7 @@ void VCCalculator::addToLinearisation(EventLabel* e) {
 			restLinearisation.push_back(linearisedEvent);
 			linearisation.pop_back();
 
-			// Encountere event in po U rf, no more valid linearisations will be created
+			// Encountered event in po U rf, no more valid linearisations will be created
 			if (isViewStrictlyGreater(e->getPorfView(), linearisedEvent->getPorfView())) {
 				break;
 			}
@@ -128,8 +138,20 @@ void VCCalculator::addToLinearisation(EventLabel* e) {
 			for (auto it = restLinearisation.rbegin(); it != restLinearisation.rend(); ++it) {
 				newLinearisation.push_back(*it);
 			}
-			
-        	newLinearisations.push_back(newLinearisation);
+
+			auto previousPoRfView = View();
+			auto increasingLinearisation = true;
+			for (auto l : newLinearisation) {
+				if (isViewStrictlySmaller(l->getPorfView(), previousPoRfView)) {
+					increasingLinearisation = false;
+					break;
+				}
+				previousPoRfView = l->getPorfView();
+			}
+
+			if (increasingLinearisation) {
+				newLinearisations.push_back(newLinearisation);
+			}
 		}
 	}
 
@@ -280,186 +302,6 @@ View VCCalculator::mergeViews(const View a, const View b) {
 	return mergedView;
 }
 
-Calculator::GlobalRelation VCCalculator::createPushto(std::vector<EventLabel*> domain) {
-	auto &g = getGraph();
-	std::vector<std::pair<EventLabel*, View>> domainClocks;
-	for (auto d : domain) {
-		domainClocks.push_back({d, hbClocks[d]});
-	}
-
-	std::sort(domainClocks.begin(), domainClocks.end(),
-    [](const auto& lhs, const auto& rhs) {
-        const View& a = lhs.second;
-        const View& b = rhs.second;
-
-        size_t size = std::max(a.size(), b.size());
-
-        for (size_t i = 0; i < size; ++i) {
-            auto aVal = (i < a.size()) ? a[i] : 0;
-            auto bVal = (i < b.size()) ? b[i] : 0;
-
-            if (aVal != bVal)
-                return aVal < bVal; // ascending sort
-        }
-
-        return false; // equal views
-    });
-
-	std::vector<Event> domainEventType;
-	for (auto d : domain) { domainEventType.push_back(d->getPos()); }
-	Calculator::GlobalRelation pushto (domainEventType);
-
-	if (domainClocks.size() < 1) return pushto;
-
-	std::pair<EventLabel*, View> previous = domainClocks.front();
-	for (auto d : domainClocks) {
-		if (isViewStrictlyGreater(d.second, previous.second)) {
-			pushto.addEdge(previous.first->getPos(), d.first->getPos());
-		}
-		previous = d;
-	}
-
-	return pushto;
-}
-
-std::vector<Calculator::GlobalRelation> VCCalculator::calcAllLinearisations(GlobalRelation rel) {
-	std::vector<GlobalRelation> pushtos;
-
-	rel.allTopoSort([this, &pushtos](auto& sort) {
-		auto &g = getGraph();
-
-		// Iterate over all events in an ordering to check
-		// if they adhere to porf view
-		for (int i = 0; i < sort.size(); i++) {
-			auto lab = g.getEventLabel(sort[i]);
-
-			for (int j = i + 1; j < sort.size(); j ++) {
-				auto nextLab = g.getEventLabel(sort[j]);
-
-				// If two events are concurrent, the ordering in the linearisation
-				// between those two events can be arbitrary
-				bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
-							&& !(nextLab->getPorfView() <= lab->getPorfView());
-				if (concurent) continue;
-
-				// If the next event has vector clock lower than the current event,
-				// those events have not been ordered consecutively in the po U rf view.
-				// This linearisation must be rejected
-				if (nextLab->getPorfView() <= lab->getPorfView()) {
-					return false;
-				}
-			}
-		}
-
-		Calculator::GlobalRelation pushto(sort);
-		for (int i = 1; i < sort.size(); i ++) {
-			auto elemA = pushto.getElems()[i - 1];
-			auto elemB = pushto.getElems()[i];
-			if (!isViewStrictlyGreater(hbClocks[g.getEventLabel(elemB)], hbClocks[g.getEventLabel(elemA)])) {
-				pushto.addEdge(elemA, elemB);
-			}
-		}
-
-		pushtos.push_back(pushto);
-
-		// Allways return false to keep finding all possible topological sorts
-		return false;
-    });
-
-	return pushtos;
-}
-
-bool VCCalculator::calcFR() {
-	auto &g = getGraph();
-
-	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
-	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
-	auto updatedHbClocks = hbClocks;
-
-	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
-    [](const auto& lhs, const auto& rhs) {
-        const View& a = lhs.second;
-        const View& b = rhs.second;
-
-        size_t size = std::max(a.size(), b.size());
-
-        for (size_t i = 0; i < size; ++i) {
-            auto aVal = (i < a.size()) ? a[i] : 0;
-            auto bVal = (i < b.size()) ? b[i] : 0;
-
-            if (aVal != bVal)
-				return aVal < bVal; // ascending sort
-        }
-
-        return false; // equal views
-    });
-
-	auto initReadersList = getInitReadersList();
-
-	for (auto pair : sortedHbClocks) {
-    	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
-
-		if (writeAccess) {
-			auto const addr = writeAccess->getAddr();
-
-			if (previousWrites.find(addr) == previousWrites.end()) {
-				for (auto r : initReadersList[addr]) {
-
-					int writeTid = writeAccess->getThread();
-					if (r->getThread() == writeTid) continue;
-
-					//llvm::outs() << r->getPos() << " -fr-> " << writeAccess->getPos() << "\n";
-
-					if (updatedHbClocks[r][writeTid] > updatedHbClocks[writeAccess][writeTid]) {
-						//llvm::outs() << updatedHbClocks[r] << updatedHbClocks[writeAccess] << "\n";
-						//llvm::outs() << "Incorrect fr edge\n";
-						return false;
-					} else {
-						updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[r]);
-					}
-				}
-	
-			} else {
-				for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
-					auto previousWrite = *it;
-					if (previousWrite == writeAccess) { ++it; continue; }
-
-					if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
-						for (auto r : previousWrite->getReadersList()) {
-							//llvm::outs() << r << " -fr-> " << writeAccess->getPos() << "\n";
-							updateHBClockChain(updatedHbClocks, writeAccess, hbClocks[g.getEventLabel(r)]);
-						}
-						// Erase events with View that is in HB of the current write access
-						it = previousWrites[addr].erase(it);
-					} else {
-						++it;
-					}
-				}
-			}
-
-			previousWrites[addr].insert(writeAccess);
-		}
-	}
-
-	hbClocks = updatedHbClocks;
-	return true;
-}
-
-std::unordered_map<SAddr, std::set<EventLabel*>> VCCalculator::getInitReadersList() {
-	auto &g = getGraph();
-	std::unordered_map<SAddr, std::set<EventLabel*>> initReadersList;
-
-	for (auto lab : labels(g)) {
-		auto readLabel = dynamic_cast<ReadLabel*>(lab);
-		if (!readLabel || !readLabel->getRf().isInitializer()) continue;
-
-		auto const addr = readLabel->getAddr();
-		initReadersList[addr].insert(readLabel);
-	}
-
-	return initReadersList;
-}
-
 void VCCalculator::calcMObyFR() {
 	auto &g = getGraph();
 	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
@@ -557,7 +399,6 @@ void VCCalculator::calcMO() {
 						mo[addr] = std::vector<WriteLabel*> {writeAccess};
 					}
 
-					//llvm::outs() << previousWrite->getPos() << " -mo-> " << writeAccess->getPos() << "\n";
 					mo[addr].push_back(writeAccess);
 					cojom.addEdge(previousWrite->getPos(), writeAccess->getPos());
 				}
@@ -567,200 +408,11 @@ void VCCalculator::calcMO() {
 			
 			if (previousWrites[addr].empty()) {
 				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
-				//llvm::outs() << "(0, 0) -mo-> " << writeAccess->getPos() << "\n";
 			}
 
 			previousWrites[addr].insert(writeAccess);
 		}
-
-		/*
-		if (readAccess) {
-			auto const addr = readAccess->getAddr();
-			auto const writeRf = readAccess->getRf();
-
-			llvm::outs() << "Checkning mo for " << readAccess->getPos() << " <-rf- " << writeRf << "\n";
-
-			auto prevHBWrite = getMinimalWrite(readAccess, readAccess->getAddr());
-
-			if (prevHBWrite->getPos() != writeRf) {
-				cojom.addEdge(prevHBWrite->getPos(), writeRf);
-				llvm::outs() << prevHBWrite->getPos() << " -mo (rf)-> " << writeRf << "\n";
-			} else {
-				llvm::outs() << "Previous access in HB is rf-write\n";
-				llvm::outs() << "Not added: " << prevHBWrite->getPos() << " -mo-> " << writeRf << "\n";
-			}
-
-			if (writeRf.isInitializer()) {
-				
-			}
-
-			llvm::outs() << "\n";
-		}
-			*/
 	}
-}
-
-EventLabel* VCCalculator::getMinimalWrite(EventLabel* m, SAddr addr) {
-	auto &g = getGraph();
-	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
-
-	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
-    [](const auto& lhs, const auto& rhs) {
-        const View& a = lhs.second;
-        const View& b = rhs.second;
-
-        size_t size = std::max(a.size(), b.size());
-
-        for (size_t i = 0; i < size; ++i) {
-            auto aVal = (i < a.size()) ? a[i] : 0;
-            auto bVal = (i < b.size()) ? b[i] : 0;
-
-            if (aVal != bVal)
-                return aVal > bVal; // descending sort
-        }
-
-        return false; // equal views
-    });
-
-	bool foundStart = false;
-	EventLabel* minimalLabel = m;
-
-	EventLabel* previousWrite = g.getEventLabel(m->getPos().getInitializer());
-
-	llvm::outs() << "Finding minimal write starting at " << m->getPos() << " for addr " << addr << "\n";
-
-	for (auto pair : sortedHbClocks) {
-		auto threadStart = dynamic_cast<ThreadStartLabel*>(pair.first);
-		auto threadEnd = dynamic_cast<ThreadFinishLabel*>(pair.first);
-		auto threadCreateLabel = dynamic_cast<ThreadCreateLabel*>(pair.first);
-		if (threadStart || threadEnd || threadCreateLabel) continue;
-
-		if (!foundStart && pair.first == m) {
-			foundStart = true;
-			continue;
-		} else if (!foundStart) {
-			continue;
-		}
-
-		//llvm::outs() << "Current minimal label " << minimalLabel->getPos() << "\n";
-
-		if (!isViewStrictlySmaller(pair.second, hbClocks[minimalLabel])) {
-			continue;
-		}
-
-		//llvm::outs() << pair.first->getPos() << minimalLabel->getPos() << "\n";
-		//llvm::outs() << pair.second << " < " << hbClocks[minimalLabel] << "\n";
-		minimalLabel = pair.first;
-
-		auto writeAccess = dynamic_cast<WriteLabel*> (pair.first);
-		if (writeAccess) {
-			if (writeAccess->getAddr() == addr && isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
-				//llvm::outs() << "found write access previously in HB " << writeAccess->getPos() << "\n";
-				return writeAccess;
-			}
-		}
-
-		auto readAccess = dynamic_cast<ReadLabel*> (pair.first);
-		if (readAccess) {
-			auto rf = g.getEventLabel(readAccess->getRf());
-			auto writeRf = dynamic_cast<WriteLabel*>(rf);
-			
-			if (readAccess->getAddr() == addr) {
-				//llvm::outs() << "returning write access by rf\n";
-				return rf;
-			}
-
-			minimalLabel = rf;
-		}
-	}
-
-	//llvm::outs() << "iterated over all accesses\n";
-
-	return g.getEventLabel(m->getPos().getInitializer()); // todo change to previousWrite
-}
-
-void VCCalculator::calcCORR() {
-	std::unordered_map<SAddr, std::set<ReadLabel*>> previousReads;
-	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
-	auto &g = getGraph();
-
-	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
-    [](const auto& lhs, const auto& rhs) {
-        const View& a = lhs.second;
-        const View& b = rhs.second;
-
-        size_t size = std::max(a.size(), b.size());
-
-        for (size_t i = 0; i < size; ++i) {
-            auto aVal = (i < a.size()) ? a[i] : 0;
-            auto bVal = (i < b.size()) ? b[i] : 0;
-
-            if (aVal != bVal)
-                return aVal < bVal; // ascending sort
-        }
-
-        return false; // equal views
-    });
-
-	for (auto pair : sortedHbClocks) {
-    	auto const readAccess = dynamic_cast<ReadLabel*>(pair.first);
-
-		if (readAccess) {
-			auto const addr = readAccess->getAddr();
-
-			for (auto it = previousReads[addr].begin(); it != previousReads[addr].end(); ) {
-				auto previousRead = *it;
-				if (previousRead->getRf() == readAccess->getRf()) { ++it; continue; }
-
-				//llvm::outs() << readAccess->getPos() << pair.second << "\n";
-
-				if (isViewStrictlyGreater(hbClocks[readAccess], hbClocks[previousRead])) {
-					if (corr.find(addr) == corr.end()) {
-						// Entry in corr for this addres does not exist yet
-						corr[addr] = std::vector<EventLabel*> {g.getEventLabel(previousRead->getRf())};
-					}
-
-					//llvm::outs() << previousRead->getRf() << " -corr-> " << readAccess->getRf() << "\n";
-					//llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())] << hbClocks[g.getEventLabel(readAccess->getRf())] << "\n";
-
-					int startTid = previousRead->getRf().thread;
-					//llvm::outs() << hbClocks[g.getEventLabel(previousRead->getRf())][startTid] << " <= " << hbClocks[g.getEventLabel(readAccess->getRf())][startTid] << "\n";
-
-					cojom.addEdge(previousRead->getRf(), readAccess->getRf());
-					corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
-
-					/*
-					if (hbClocks[g.getEventLabel(previousRead->getRf())][startTid] <= hbClocks[g.getEventLabel(readAccess->getRf())][startTid]) {
-						cojom.addEdge(previousRead->getRf(), readAccess->getRf());
-						corr[addr].push_back(g.getEventLabel(readAccess->getRf()));
-					} else {
-						llvm::outs() << "Invalid corr edge\n";
-					}
-					*/
-				}
-
-				++it;
-			}
-
-			previousReads[addr].insert(readAccess);
-		}
-	}
-}
-
-bool VCCalculator::checkMoCoherence(WriteLabel* start, WriteLabel* end) {
-	auto co = getGraph().getCoherenceCalculator();
-	auto const addr = start->getAddr();
-
-	bool foundStart = false;
-	for (auto locIter = co->store_begin(addr); locIter != co->store_end(addr); ++locIter) {
-		Event writeAccess = *locIter;
-		if (writeAccess == start->getPos()) foundStart = true;
-		if (foundStart && writeAccess == end->getPos()) {
-			return true;
-		}
-	}
-
-	return false;	
 }
 
 bool VCCalculator::isViewStrictlyGreater(View a, View b) {

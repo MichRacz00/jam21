@@ -31,6 +31,8 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 
 	auto &g = getGraph();
 
+	llvm::outs() << pushtos.size() << "\n";
+
 	for (auto p : pushtos) {
 		Calculator::GlobalRelation c(allLabels);
 		cojom = c;
@@ -105,7 +107,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 
 	std::unordered_map<SAddr, View> baseViews;
 
-	llvm::outs() << " --- " << tid << " --- \n";
+	//llvm::outs() << " --- " << tid << " --- \n";
 
     for (auto &lab : thread) {
 		// Keep track of 4 previous labels
@@ -165,7 +167,7 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 			baseViews[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
 		}
 
-		llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
+		//llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
 		if (previousLabels[0] == halt) {
 			// Reached the last event specified, end calculations
 			//llvm::outs() << " --- halt --- \n";
