@@ -54,9 +54,13 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 		calcMO();
 		calcMObyFR();
 
+		for (auto a : moClocks) {
+			llvm::outs() << a.first->getPos() << " " << a.second << "\n";
+		}
+
 		cojom.transClosure();
 		if (cojom.isIrreflexive()) {
-			//return Calculator::CalculationResult(false, true);
+			return Calculator::CalculationResult(false, true);
 		}
 		hbClocks = cleanHbClocks;
 	}
@@ -74,7 +78,6 @@ Calculator::CalculationResult VCCalculator::doCalc() {
 		}
 	}
 
-	return CalculationResult(false, true);
 	return Calculator::CalculationResult(false, false);
 }
 
@@ -162,6 +165,25 @@ void VCCalculator::removeAfter(const VectorClock &preds)
 {
 	/* We do not track anything specific */
 	return;
+}
+
+bool VCCalculator::addMOedge(EventLabel* from, EventLabel* to) {
+	if (!from || !to) {
+		llvm::errs() << "addMOedge error: null EventLabel\n";
+		return false;
+	}
+
+	if (moClocks.find(from) == moClocks.end()) {
+    	moClocks[from] = 1;
+	}
+
+	if (moClocks.find(to) == moClocks.end()) {
+		moClocks[to] = moClocks[from] + 1;
+	} else {
+		moClocks[to] = std::max(moClocks[to], moClocks[from] + 1);
+	}
+
+	return true;
 }
 
 void VCCalculator::calcHB() {
@@ -346,10 +368,12 @@ void VCCalculator::calcMObyFR() {
 
 				if (writeRf.isInitializer()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
+					addMOedge(writeAccess, writeRfLabel);
 					//llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
 					break;
 				} else if (writeRfLabel && writeRfLabel->getAddr() == writeAccess->getAddr()) {
 					cojom.addEdge(writeAccess->getPos(), writeRf);
+					addMOedge(writeAccess, writeRfLabel);
 					//llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
 					return;
 				}
@@ -396,11 +420,12 @@ void VCCalculator::calcMO() {
 
 					if (previousWrites.find(addr) == previousWrites.end()) {
 						previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
-						mo[addr] = std::vector<WriteLabel*> {writeAccess};
+						//mo[addr] = std::vector<WriteLabel*> {writeAccess};
 					}
 
-					mo[addr].push_back(writeAccess);
+					//mo[addr].push_back(writeAccess);
 					cojom.addEdge(previousWrite->getPos(), writeAccess->getPos());
+					addMOedge(previousWrite, writeAccess);
 				}
 
 				++it;
@@ -408,6 +433,7 @@ void VCCalculator::calcMO() {
 			
 			if (previousWrites[addr].empty()) {
 				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
+				addMOedge(g.getEventLabel(writeAccess->getPos().getInitializer()), writeAccess);
 			}
 
 			previousWrites[addr].insert(writeAccess);
@@ -491,7 +517,6 @@ bool VCCalculator::isFence(EventLabel *lab) {
 void VCCalculator::resetViews() {
 	hbClocks.clear();
 	moClocks.clear();
-	mo.clear();
 	corr.clear();
 	domainPushto.clear();
 	linearisations.clear();

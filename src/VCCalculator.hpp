@@ -43,8 +43,7 @@ public:
 
 private:
 	std::unordered_map<EventLabel*, View> hbClocks;
-	std::unordered_map<EventLabel*, View> moClocks;
-	std::unordered_map<SAddr, std::vector<WriteLabel*>> mo;
+	std::unordered_map<EventLabel*, int> moClocks;
 	std::unordered_map<SAddr, std::vector<EventLabel*>> corr;
 	std::vector<EventLabel*> domainPushto;
 
@@ -52,6 +51,8 @@ private:
 	void calcHB(ExecutionGraph::Thread &thread, EventLabel* halt);
 	void calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels);
 	void calcMO();
+
+	bool addMOedge(EventLabel* from, EventLabel* to);
 
 	std::vector<std::vector<EventLabel*>> linearisations;
 	void addToLinearisation(EventLabel* e);
