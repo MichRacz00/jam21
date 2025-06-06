@@ -40,6 +40,26 @@ public:
 	std::unique_ptr<Calculator> clone(ExecutionGraph &g) const override {
 		return std::make_unique<SimpleCalculator>(g);
 	}
+
+private:
+	std::unordered_map<EventLabel*, View> hbClocks;
+	std::unordered_map<EventLabel*, SAddr> polocClocks;
+
+	void calcHBClocks() {
+		auto &g = getGraph();
+		for (auto &t : g.getThreadList()) {
+			calcHBClocks(t);
+		}
+	}
+
+	void calcHBClocks(ExecutionGraph::Thread &t) {
+		auto &lastLab = t.back();
+		calcHBClocks(t, lastLab.get());
+	}
+
+	void calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* halt);
+
+	bool isFence(EventLabel *lab);
 };
 
 #endif /* __SIMPLE_CALCULATOR_HPP__ */
