@@ -71,29 +71,52 @@ void SimpleCalculator::calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* 
 			currentView[rfTid]++;
 		}
 
-		bool syncCurrent = false
-		|| dynamic_cast<ThreadFinishLabel*>(lab.get())
-		|| ((lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease())
+		// If previous access to the same location has the same value, increment by 1
+		auto memAccess = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (memAccess) {
+			auto addr = memAccess->getAddr();
+			if (currentView[tid] <= previousAccessViews[addr][tid]) {
+				currentView[tid] = previousAccessViews[addr][tid];
+				currentView[tid]++;
+			}
+			previousAccessViews[addr] = currentView;
+		}
+
+		bool syncCurrent =
+			// Thread finish label should allways be at the end of the thread
+			dynamic_cast<ThreadFinishLabel*>(lab.get())
+			// Rel, Acq and SC accesses (ra relation)
+			|| ((lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease())
 				&& (dynamic_cast<ReadLabel*>(lab.get()) || dynamic_cast<WriteLabel*>(lab.get())));
 
-		bool syncBoth = (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent && isFence(lab.get()));
+		bool syncBoth =
+			// SC fence (spush), all events before in po must be before,
+			// all events after must be after thus synch of current and next event
+			(lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent && isFence(lab.get()))
+			// Adds synchronization for svo relation
+			|| (lab.get()->getOrdering() == llvm::AtomicOrdering::Release && isFence(lab.get()))
+			|| (lab.get()->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(lab.get()));
 
+		// Thread start label must allways be before all events
 		bool syncNext = dynamic_cast<ThreadStartLabel*>(lab.get());
 
 		if (syncCurrent || syncBoth) {
 			if (currentView[tid] <= baseView[tid]) {
-				currentView[tid]++;
+				currentView[tid] = baseView[tid];
+				currentView[tid] ++;
 			}
 		}
 
-		llvm::outs() << lab.get()->getPos() << " " << currentView << "\n";
 		hbClocks[lab.get()] = currentView;
+
+		if (syncNext || syncBoth) {
+			currentView[tid] ++;
+		}
 
 		baseView = currentView;
 
-		if (syncNext || syncBoth) {
-			baseView[tid]++;
-		}
+		llvm::outs() << lab.get()->getPos() << " " << hbClocks[lab.get()] << baseView << " ";
+		llvm::outs() <<"\n";
 
 		if (halt == lab.get()) return;
 	}
