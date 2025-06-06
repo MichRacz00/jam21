@@ -87,7 +87,8 @@ void SimpleCalculator::calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* 
 			dynamic_cast<ThreadFinishLabel*>(lab.get())
 			// Rel, Acq and SC accesses (ra relation)
 			|| ((lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease())
-				&& (dynamic_cast<ReadLabel*>(lab.get()) || dynamic_cast<WriteLabel*>(lab.get())));
+				&& (dynamic_cast<ReadLabel*>(lab.get()) || dynamic_cast<WriteLabel*>(lab.get())))
+			|| dynamic_cast<ThreadCreateLabel*>(lab.get());
 
 		bool syncBoth =
 			// SC fence (spush), all events before in po must be before,
