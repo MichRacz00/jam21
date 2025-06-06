@@ -69,6 +69,7 @@ void SimpleCalculator::calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* 
 			// Merge RF View, increase by 1 to reflect synch effect of RF
 			currentView.update(hbClocks[rfLab]);
 			currentView[rfTid]++;
+			baseView = currentView;
 		}
 
 		// If previous access to the same location has the same value, increment by 1
@@ -102,21 +103,30 @@ void SimpleCalculator::calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* 
 		bool syncNext = dynamic_cast<ThreadStartLabel*>(lab.get());
 
 		if (syncCurrent || syncBoth) {
+			int maxAccess = 0;
+			for (auto pair : previousAccessViews) {
+				if (pair.second[tid] > maxAccess) {
+					maxAccess = pair.second[tid];
+				}
+			}
+			currentView[tid] = maxAccess + 1;
+			previousAccessViews.clear();
+
 			if (currentView[tid] <= baseView[tid]) {
 				currentView[tid] = baseView[tid];
 				currentView[tid] ++;
 			}
+			baseView = currentView;
 		}
 
 		hbClocks[lab.get()] = currentView;
 
 		if (syncNext || syncBoth) {
 			currentView[tid] ++;
+			baseView = currentView;
 		}
 
-		baseView = currentView;
-
-		llvm::outs() << lab.get()->getPos() << " " << hbClocks[lab.get()] << baseView << " ";
+		llvm::outs() << lab.get()->getPos() << " " << hbClocks[lab.get()] << " ";
 		llvm::outs() <<"\n";
 
 		if (halt == lab.get()) return;
