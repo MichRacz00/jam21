@@ -31,36 +31,37 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 
+	// Setting up initial vector clock
 	auto const firstEvent = thread.front().get();
 	auto const tid = firstEvent->getThread();
 	auto firstLab = dynamic_cast<ThreadStartLabel*>(firstEvent);
 	auto threadCreateEvent = g.getEventLabel(firstLab->getParentCreate());
-
 	auto threadCreateClock = voClocks[threadCreateEvent];
+
+	// Setting up last views
 	auto currentVoView = View(threadCreateClock);
-
+	View lastCommonView = currentVoView;
 	std::unordered_map<SAddr, View> lastPerLocView;
-	View lastCommonView = View(threadCreateClock);
-
+	
 	bool advanceNext = false;
 
 	llvm::outs() << "\n";
 
 	for (auto &lab : thread) {
-		if (!voClocks[lab.get()].empty()) {
-			continue;
-		}
+		// VC already calculated for this event, skip
+		if (!voClocks[lab.get()].empty()) continue;
 
+		// If previous iteration requested VC advancment of the next VC
 		bool advanceNow = false;
 		if (advanceNext == true) {
 			advanceNext = false;
 			advanceNow = true;
 		}
 
+		// isRelaxed is true if lab is a relaxed memory access
 		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
 		bool isRelaxed = memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic;
-
-		// relaxed memory access
+		
 		if (isRelaxed) {
 			auto addr = memLab->getAddr();
 			auto it = lastPerLocView.find(addr);
