@@ -42,22 +42,22 @@ public:
 	}
 
 private:
-	std::unordered_map<EventLabel*, View> hbClocks;
+	std::unordered_map<EventLabel*, View> voClocks;
 	std::unordered_map<EventLabel*, SAddr> polocClocks;
 
-	void calcHBClocks() {
+	void calcClocks() {
 		auto &g = getGraph();
 		for (auto &t : g.getThreadList()) {
-			calcHBClocks(t);
+			calcClocks(t);
 		}
 	}
 
-	void calcHBClocks(ExecutionGraph::Thread &t) {
+	void calcClocks(ExecutionGraph::Thread &t) {
 		auto &lastLab = t.back();
-		calcHBClocks(t, lastLab.get());
+		calcClocks(t, lastLab.get());
 	}
 
-	void calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* halt);
+	void calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt);
 
 	bool isFence(EventLabel *lab);
 };

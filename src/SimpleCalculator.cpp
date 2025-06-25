@@ -20,116 +20,75 @@ void SimpleCalculator::removeAfter(const VectorClock &preds)
 
 Calculator::CalculationResult SimpleCalculator::doCalc() {
 
-	calcHBClocks();
+	calcClocks();
 
-	hbClocks.clear();
+	voClocks.clear();
 	polocClocks.clear();
 
 	return Calculator::CalculationResult(false, true);
 }
 
-void SimpleCalculator::calcHBClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
+void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 
-	auto const firstThreadEvent = thread.front().get();
-	auto const tid = firstThreadEvent->getThread();
+	auto const firstEvent = thread.front().get();
+	auto const tid = firstEvent->getThread();
+	auto firstLab = dynamic_cast<ThreadStartLabel*>(firstEvent);
+	auto threadCreateEvent = g.getEventLabel(firstLab->getParentCreate());
 
-	auto firstThreadLab = dynamic_cast<ThreadStartLabel*>(firstThreadEvent);
-	auto threadCreateEvent = g.getEventLabel(firstThreadLab->getParentCreate());
+	auto threadCreateClock = voClocks[threadCreateEvent];
+	auto currentVoView = View(threadCreateClock);
 
-	auto threadCreateClock = hbClocks[threadCreateEvent];
-	auto baseView = View(threadCreateClock);
-	auto commonRfView = View();
+	bool advanceNext = false;
 
-	std::unordered_map<SAddr, View> previousAccessViews;
+	std::unordered_map<SAddr, View> lastPerLocView;
+	View lastCommonView = View(threadCreateClock);
 
 	llvm::outs() << "\n";
 
 	for (auto &lab : thread) {
-		if (!hbClocks[lab.get()].empty()) {
-			baseView = hbClocks[lab.get()];
+		if (!voClocks[lab.get()].empty()) {
+			currentVoView = voClocks[lab.get()];
 			continue;
 		}
 
-		auto currentView = baseView;
+		// relaxed memory access
+		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+			auto it = lastPerLocView.find(memLab);
 
-		// Merge View from incoming RF edge
-		auto readLab = dynamic_cast<ReadLabel*>(lab.get());
-		if (readLab && !readLab->getRf().isInitializer()) {
-			auto rfLab = g.getEventLabel(readLab->getRf());
-			auto rfTid = rfLab->getThread();
+			llvm::outs() << lab.get()->getPos() << " relaxed\n";
 
-			// RF View not yet calculated, calculate it
-			if (hbClocks[rfLab].empty()) {
-				auto &rfThread = g.getThreadList()[rfTid];
-				calcHBClocks(rfThread, rfLab);
-				llvm::outs() << "\n";
+			// this location was not accessed since last synchronization yet
+			if (it == lastPerLocView.end()) {
+
 			}
-
-			// Merge RF View, increase by 1 to reflect synch effect of RF
-			currentView.update(hbClocks[rfLab]);
-			currentView[rfTid]++;
-			baseView = currentView;
 		}
 
-		// If previous access to the same location has the same value, increment by 1
-		auto memAccess = dynamic_cast<MemAccessLabel*>(lab.get());
-		if (memAccess) {
-			auto addr = memAccess->getAddr();
-			if (currentView[tid] <= previousAccessViews[addr][tid]) {
-				currentView[tid] = previousAccessViews[addr][tid];
-				currentView[tid]++;
-			}
-			previousAccessViews[addr] = currentView;
+		bool advanceNow = false;
+		if (advanceNext = true) {
+			advanceNext = false;
+			advanceNow = true;
 		}
 
-		bool syncCurrent =
-			// Thread finish label should allways be at the end of the thread
-			dynamic_cast<ThreadFinishLabel*>(lab.get())
-			// Rel, Acq and SC accesses (ra relation)
-			|| ((lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease())
-				&& (dynamic_cast<ReadLabel*>(lab.get()) || dynamic_cast<WriteLabel*>(lab.get())))
-			|| dynamic_cast<ThreadCreateLabel*>(lab.get());
-
-		bool syncBoth =
-			// SC fence (spush), all events before in po must be before,
-			// all events after must be after thus synch of current and next event
-			(lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent && isFence(lab.get()))
-			// Adds synchronization for svo relation
-			|| (lab.get()->getOrdering() == llvm::AtomicOrdering::Release && isFence(lab.get()))
-			|| (lab.get()->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(lab.get()));
-
-		// Thread start label must allways be before all events
-		bool syncNext = dynamic_cast<ThreadStartLabel*>(lab.get());
-
-		if (syncCurrent || syncBoth) {
-			int maxAccess = 0;
-			for (auto pair : previousAccessViews) {
-				if (pair.second[tid] > maxAccess) {
-					maxAccess = pair.second[tid];
-				}
-			}
-			currentView[tid] = maxAccess + 1;
-			previousAccessViews.clear();
-
-			if (currentView[tid] <= baseView[tid]) {
-				currentView[tid] = baseView[tid];
-				currentView[tid] ++;
-			}
-			baseView = currentView;
+		// ra and svo
+		if (lab.get()->getOrdering() == llvm::AtomicOrdering::Release
+			|| lab.get()->getOrdering() == llvm::AtomicOrdering::Acquire
+			|| lab.get()->getOrdering() == llvm::AtomicOrdering::AcquireRelease)
+		{
+			advanceNow = true;
+			advanceNext = true;
 		}
 
-		hbClocks[lab.get()] = currentView;
-
-		if (syncNext || syncBoth) {
-			currentView[tid] ++;
-			baseView = currentView;
+		// sc fence and memory access
+		if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
+			advanceNow = true;
+			advanceNext = true;
 		}
-
-		llvm::outs() << lab.get()->getPos() << " " << hbClocks[lab.get()] << " ";
-		llvm::outs() <<"\n";
-
-		if (halt == lab.get()) return;
+		
+		if (advanceNow == true) {
+			currentVoView[tid] ++;
+		}
 	}
 	llvm::outs() << "\n";
 }
