@@ -39,10 +39,10 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 	auto threadCreateClock = voClocks[threadCreateEvent];
 	auto currentVoView = View(threadCreateClock);
 
-	bool advanceNext = false;
-
 	std::unordered_map<SAddr, View> lastPerLocView;
 	View lastCommonView = View(threadCreateClock);
+
+	bool advanceNext = false;
 
 	llvm::outs() << "\n";
 
@@ -51,23 +51,28 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			continue;
 		}
 
-		// relaxed memory access
+		bool advanceNow = false;
+		if (advanceNext == true) {
+			advanceNext = false;
+			advanceNow = true;
+		}
+
 		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		if (memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+		bool isRelaxed = memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic;
+
+		// relaxed memory access
+		if (isRelaxed) {
 			auto addr = memLab->getAddr();
 			auto it = lastPerLocView.find(addr);
 
-			// this location was not accessed since last synchronization yet
 			if (it == lastPerLocView.end()) {
+				// this location was not accessed since last synchronization yet
 				currentVoView = lastCommonView;
 			} else {
+				// advance last 
 				currentVoView = lastPerLocView[addr];
 			}
-		}
 
-		bool advanceNow = false;
-		if (advanceNext = true) {
-			advanceNext = false;
 			advanceNow = true;
 		}
 
@@ -86,21 +91,24 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			advanceNext = true;
 		}
 		
-		if (advanceNow == true) {
-			currentVoView[tid] ++;
-		}
+		if (advanceNow == true) currentVoView[tid] ++;
 
 		voClocks[lab.get()] = currentVoView;
 
-		if (memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+		if (isRelaxed) {
+			// Relaxed memory access, store vo view per location
 			lastPerLocView[memLab->getAddr()] = currentVoView;
 		} else {
+			// Synchronization, merge all relaxed vo views
+			for (auto pair : lastPerLocView) {
+				currentVoView.update(pair.second);
+			}
 			lastCommonView = currentVoView;
 			lastPerLocView.clear();
 		}
-		llvm::outs() << lab.get()->getPos() << currentVoView << "\n";
+
+		llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
 	}
-	llvm::outs() << "\n";
 }
 
 bool SimpleCalculator::isFence(EventLabel *lab) {
