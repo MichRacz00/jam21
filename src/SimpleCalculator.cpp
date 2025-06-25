@@ -48,20 +48,20 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 
 	for (auto &lab : thread) {
 		if (!voClocks[lab.get()].empty()) {
-			currentVoView = voClocks[lab.get()];
 			continue;
 		}
 
 		// relaxed memory access
 		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
 		if (memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic) {
-			auto it = lastPerLocView.find(memLab);
-
-			llvm::outs() << lab.get()->getPos() << " relaxed\n";
+			auto addr = memLab->getAddr();
+			auto it = lastPerLocView.find(addr);
 
 			// this location was not accessed since last synchronization yet
 			if (it == lastPerLocView.end()) {
-
+				currentVoView = lastCommonView;
+			} else {
+				currentVoView = lastPerLocView[addr];
 			}
 		}
 
@@ -89,6 +89,16 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 		if (advanceNow == true) {
 			currentVoView[tid] ++;
 		}
+
+		voClocks[lab.get()] = currentVoView;
+
+		if (memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+			lastPerLocView[memLab->getAddr()] = currentVoView;
+		} else {
+			lastCommonView = currentVoView;
+			lastPerLocView.clear();
+		}
+		llvm::outs() << lab.get()->getPos() << currentVoView << "\n";
 	}
 	llvm::outs() << "\n";
 }
