@@ -43,7 +43,7 @@ public:
 
 private:
 	std::unordered_map<EventLabel*, View> voClocks;
-	std::unordered_map<EventLabel*, SAddr> polocClocks;
+	std::vector<std::vector<EventLabel*>> linearisations;
 
 	void calcClocks() {
 		auto &g = getGraph();
@@ -58,6 +58,8 @@ private:
 	}
 
 	void calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt);
+
+	void addToLinearisations(EventLabel* lab);
 
 	bool isFence(EventLabel *lab);
 };

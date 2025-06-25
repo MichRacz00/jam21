@@ -23,7 +23,6 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 	calcClocks();
 
 	voClocks.clear();
-	polocClocks.clear();
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -67,14 +66,24 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			auto it = lastPerLocView.find(addr);
 
 			if (it == lastPerLocView.end()) {
-				// this location was not accessed since last synchronization yet
+				// memory location was not yet accessed since last synchronization
 				currentVoView = lastCommonView;
 			} else {
-				// advance last 
+				// ther was already an access to this memory location
 				currentVoView = lastPerLocView[addr];
 			}
 
 			advanceNow = true;
+		}
+
+		auto readLab = dynamic_cast<ReadLabel*>(lab.get());
+		if (readLab) {
+			auto writeLab = g.getEventLabel(readLab->getRf());
+			if (voClocks[writeLab].empty()) {
+				calcClocks(g.getThreadList()[writeLab->getThread()], writeLab);
+			}
+			currentVoView.update(voClocks[writeLab]);
+			currentVoView[writeLab->getThread()] ++;
 		}
 
 		// ra and svo
@@ -93,14 +102,13 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 		}
 		
 		if (advanceNow == true) currentVoView[tid] ++;
-
 		voClocks[lab.get()] = currentVoView;
 
 		if (isRelaxed) {
 			// Relaxed memory access, store vo view per location
 			lastPerLocView[memLab->getAddr()] = currentVoView;
 		} else {
-			// Synchronization, merge all relaxed vo views
+			// Synchronization, merge all relaxed per loc vo views
 			for (auto pair : lastPerLocView) {
 				currentVoView.update(pair.second);
 			}
@@ -109,7 +117,20 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 		}
 
 		llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
+
+		if (lab.get() == halt) return;
 	}
+}
+
+void SimpleCalculator::addToLinearisations(EventLabel* lab) {
+	// If there are no linearisations, trivially create the single one
+	if (linearisations.empty()) {
+		std::vector<EventLabel*> initLin;
+		initLin.push_back(lab);
+		linearisations.push_back(initLin);
+	}
+
+
 }
 
 bool SimpleCalculator::isFence(EventLabel *lab) {
