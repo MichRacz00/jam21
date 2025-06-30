@@ -22,6 +22,8 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 
 	calcClocks();
 
+	llvm::outs() << linearisations.size() << "\n";
+
 	voClocks.clear();
 	pushtoSynchpoints.clear();
 	linearisations.clear();
@@ -144,8 +146,6 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 
 void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab) {
 	pushtoSynchpoints[lab] = synchLab;
-
-	llvm::outs() << "inserting " << lab->getPos() << synchLab->getPos() << "\n";
 	
 	// If there are no linearisations, trivially create the single one
 	if (linearisations.empty()) {
@@ -189,10 +189,6 @@ void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab
 			if (!valid) continue;
 
     		newLinearisations.push_back(newLin);
-			for (auto l : newLin) {
-				llvm::outs() << l->getPos();
-			}
-			llvm::outs() << "\n";
 		}
 	}
 	linearisations = newLinearisations;
