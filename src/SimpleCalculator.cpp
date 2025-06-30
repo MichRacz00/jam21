@@ -22,14 +22,6 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 
 	calcClocks();
 
-	llvm::outs() << "\n";
-	for (auto l : linearisations) {
-		for (auto lab : l) {
-			llvm::outs() << lab->getPos();
-		}
-		llvm::outs() << "\n";
-	}
-
 	voClocks.clear();
 	pushtoSynchpoints.clear();
 	linearisations.clear();
@@ -55,7 +47,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 	bool advanceNext = false;
 	EventLabel* prevVolint = nullptr;
 
-	llvm::outs() << "\n";
+	//llvm::outs() << "\n";
 
 	for (auto &lab : thread) {
 		// VC already calculated for this event, skip
@@ -144,7 +136,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			lastPerLocView.clear();
 		}
 
-		llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
+		//llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
 
 		if (lab.get() == halt) return;
 	}
@@ -171,36 +163,36 @@ void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab
     		std::vector<EventLabel*> newLin;
 
     		// Add all events before the insertion point
+			bool valid = true;
     		for (size_t j = 0; j < i; ++j) {
+				if (isViewGreater(lin[j]->getPorfView(), lab->getPorfView())) {
+					valid = false;
+					break;
+				}
         		newLin.push_back(lin[j]);
     		}
+
+			if (!valid) continue;
 
     		// Insert the new event at position i
     		newLin.push_back(lab);
 
     		// Add all remaining events from position i onwards
     		for (size_t j = i; j < lin.size(); ++j) {
+				if (isViewSmaller(lin[j]->getPorfView(), lab->getPorfView())) {
+					valid = false;
+					break;
+				}
         		newLin.push_back(lin[j]);
     		}
 
-			EventLabel* prevEvent = (i > 0) ? lin[i-1] : nullptr;
-    		EventLabel* nextEvent = (i < lin.size()) ? lin[i] : nullptr;
+			if (!valid) continue;
 
-			bool valid = true;
-    		if (prevEvent) {
-        		if (isViewGreater(prevEvent->getPorfView(), lab->getPorfView())) {
-            		valid = false;
-        		}
-    		}
-    		if (nextEvent) {
-        		if (isViewSmaller(nextEvent->getPorfView(), lab->getPorfView())) {
-            		valid = false;
-        		}
-    		}
-
-    		if (valid) {
-        		newLinearisations.push_back(newLin);
-    		}
+    		newLinearisations.push_back(newLin);
+			for (auto l : newLin) {
+				llvm::outs() << l->getPos();
+			}
+			llvm::outs() << "\n";
 		}
 	}
 	linearisations = newLinearisations;
