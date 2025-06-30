@@ -43,12 +43,20 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 	std::unordered_map<SAddr, View> lastPerLocView;
 	
 	bool advanceNext = false;
+	EventLabel* prevVolint = nullptr;
 
 	llvm::outs() << "\n";
 
 	for (auto &lab : thread) {
 		// VC already calculated for this event, skip
-		if (!voClocks[lab.get()].empty()) continue;
+		if (!voClocks[lab.get()].empty()) {
+			if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent
+				&& !isFence(lab.get())) {
+				// maintain knowledge of previous SC access even without calculating VCs
+				prevVolint = lab.get();
+			}
+			continue;
+		}
 
 		// If previous iteration requested VC advancment of the next VC
 		bool advanceNow = false;
@@ -69,16 +77,18 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 				// memory location was not yet accessed since last synchronization
 				currentVoView = lastCommonView;
 			} else {
-				// ther was already an access to this memory location
+				// there was already an access to this memory location
 				currentVoView = lastPerLocView[addr];
 			}
 
 			advanceNow = true;
 		}
 
+		// Merge VC of the incoming RF edge
 		auto readLab = dynamic_cast<ReadLabel*>(lab.get());
 		if (readLab) {
 			auto writeLab = g.getEventLabel(readLab->getRf());
+			// The VC for RF write not yet calculated, calculate it now
 			if (voClocks[writeLab].empty()) {
 				calcClocks(g.getThreadList()[writeLab->getThread()], writeLab);
 			}
@@ -95,10 +105,17 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			advanceNext = true;
 		}
 
-		// sc fence and memory access
 		if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
-			advanceNow = true;
-			advanceNext = true;
+			if (prevVolint != nullptr) {
+				addToLinearisations(prevVolint, lab.get());
+			}
+
+			prevVolint = lab.get();
+
+			if(isFence(lab.get())) {
+				addToLinearisations(lab.get(), lab.get());
+				prevVolint = nullptr;
+			}
 		}
 		
 		if (advanceNow == true) currentVoView[tid] ++;
@@ -122,14 +139,15 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 	}
 }
 
-void SimpleCalculator::addToLinearisations(EventLabel* lab) {
+void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab) {
 	// If there are no linearisations, trivially create the single one
 	if (linearisations.empty()) {
-		std::vector<EventLabel*> initLin;
-		initLin.push_back(lab);
-		linearisations.push_back(initLin);
+		//std::vector<EventLabel*> initLin;
+		//initLin.push_back((lab, synchLab));
+		//linearisations.push_back(initLin);
 	}
 
+	llvm::outs() << lab->getPos() << synchLab->getPos() << "\n";
 
 }
 
