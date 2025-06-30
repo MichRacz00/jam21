@@ -22,7 +22,17 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 
 	calcClocks();
 
+	llvm::outs() << "\n";
+	for (auto l : linearisations) {
+		for (auto lab : l) {
+			llvm::outs() << lab->getPos();
+		}
+		llvm::outs() << "\n";
+	}
+
 	voClocks.clear();
+	pushtoSynchpoints.clear();
+	linearisations.clear();
 
 	return Calculator::CalculationResult(false, true);
 }
@@ -105,6 +115,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			advanceNext = true;
 		}
 
+		// Collect synchpoints for pushto relation, add event to linearisations
 		if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
 			if (prevVolint != nullptr) {
 				addToLinearisations(prevVolint, lab.get());
@@ -140,15 +151,59 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 }
 
 void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab) {
+	pushtoSynchpoints[lab] = synchLab;
+
+	llvm::outs() << "inserting " << lab->getPos() << synchLab->getPos() << "\n";
+	
 	// If there are no linearisations, trivially create the single one
 	if (linearisations.empty()) {
-		//std::vector<EventLabel*> initLin;
-		//initLin.push_back((lab, synchLab));
-		//linearisations.push_back(initLin);
+		std::vector<EventLabel*> lin;
+		linearisations.push_back(lin);
 	}
 
-	llvm::outs() << lab->getPos() << synchLab->getPos() << "\n";
+	std::vector<std::vector<EventLabel*>> newLinearisations;
+	while (!linearisations.empty()) {
+		std::vector<EventLabel*> lin = std::move(linearisations.back());
+		linearisations.pop_back();
+	
+		EventLabel* prevLab = nullptr;
+		for (size_t i = 0; i <= lin.size(); ++i) {
+    		std::vector<EventLabel*> newLin;
 
+    		// Add all events before the insertion point
+    		for (size_t j = 0; j < i; ++j) {
+        		newLin.push_back(lin[j]);
+    		}
+
+    		// Insert the new event at position i
+    		newLin.push_back(lab);
+
+    		// Add all remaining events from position i onwards
+    		for (size_t j = i; j < lin.size(); ++j) {
+        		newLin.push_back(lin[j]);
+    		}
+
+			EventLabel* prevEvent = (i > 0) ? lin[i-1] : nullptr;
+    		EventLabel* nextEvent = (i < lin.size()) ? lin[i] : nullptr;
+
+			bool valid = true;
+    		if (prevEvent) {
+        		if (isViewGreater(prevEvent->getPorfView(), lab->getPorfView())) {
+            		valid = false;
+        		}
+    		}
+    		if (nextEvent) {
+        		if (isViewSmaller(nextEvent->getPorfView(), lab->getPorfView())) {
+            		valid = false;
+        		}
+    		}
+
+    		if (valid) {
+        		newLinearisations.push_back(newLin);
+    		}
+		}
+	}
+	linearisations = newLinearisations;
 }
 
 bool SimpleCalculator::isFence(EventLabel *lab) {
@@ -162,4 +217,48 @@ bool SimpleCalculator::isFence(EventLabel *lab) {
 		default:
 			return false;
 	}
+}
+
+/**
+ * a > b
+ * 
+ * If no component of a is smaller than corresponding
+ * component of b, and at least one component of a is larger
+ * than the corresponding component of b, true is returned.
+ */
+bool SimpleCalculator::isViewGreater(View a, View b) {
+	int size = std::max(a.size(), b.size());
+	bool greaterFound = false;
+
+	for (int i = 0; i < size; i ++) {
+        if (a[i] < b[i]) {
+			return false; // a is smaller at this index
+		} else if (a[i] > b[i]) {
+			greaterFound = true;
+		}
+    }
+
+    return greaterFound;
+}
+
+/**
+ * a < b
+ * 
+ * If no component of a is greater than corresponding
+ * component of b, and at least one component of a is smaller
+ * than the corresponding component of b, true is returned.
+ */
+bool SimpleCalculator::isViewSmaller(View a, View b) {
+	int size = std::max(a.size(), b.size());
+	bool smallerFound = false;
+
+	for (int i = 0; i < size; i ++) {
+        if (a[i] > b[i]) {
+			return false; // a is greater at this index
+		} else if (a[i] < b[i]) {
+			smallerFound = true;
+		}
+    }
+
+    return smallerFound;
 }

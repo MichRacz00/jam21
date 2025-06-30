@@ -43,7 +43,8 @@ public:
 
 private:
 	std::unordered_map<EventLabel*, View> voClocks;
-	std::vector<std::vector<std::pair<EventLabel*, EventLabel*>>> linearisations;
+	std::unordered_map<EventLabel*, EventLabel*> pushtoSynchpoints;
+	std::vector<std::vector<EventLabel*>> linearisations;
 
 	void calcClocks() {
 		auto &g = getGraph();
@@ -62,6 +63,9 @@ private:
 	void addToLinearisations(EventLabel* lab, EventLabel* synchLab);
 
 	bool isFence(EventLabel *lab);
+
+	bool isViewGreater(View a, View b);
+	bool isViewSmaller(View a, View b);
 };
 
 #endif /* __SIMPLE_CALCULATOR_HPP__ */
