@@ -83,7 +83,11 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 
 		// isRelaxed is true if lab is a relaxed memory access
 		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		bool isRelaxed = memLab && lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic;
+		bool isRelaxed =
+			memLab && (
+			lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic ||
+			lab.get()->getOrdering() == llvm::AtomicOrdering::NotAtomic
+			);
 		
 		if (isRelaxed) {
 			auto addr = memLab->getAddr();
