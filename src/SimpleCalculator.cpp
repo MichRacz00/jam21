@@ -23,17 +23,31 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 	calcClocks();
 
 	for (auto l : linearisations) {
+		// TODO: remove
+		/*
 		llvm::outs() << "linearisation: ";
 		for (auto lab : l) {
 			llvm::outs() << lab->getPos();
 		}
 		llvm::outs() << "\n";
+		*/
 
 		auto linVoClocks = applyLinearisation(l);
+		auto accessesPerLoc = getAccessesPerLoc(linVoClocks);
 
+		for (auto addrAndAccesses : accessesPerLoc) {
+			llvm::outs() << addrAndAccesses.first << "\n";
+			auto consistent = isConsistent(addrAndAccesses.second, linVoClocks);
+			if (!consistent) return Calculator::CalculationResult(false, false);
+		}
+
+		// TODO: remove
+		/*
 		for (auto labAndClock : linVoClocks) {
 			llvm::outs() << labAndClock.first->getPos() << " " << labAndClock.second << "\n";
 		}
+		*/
+		
 	}
 
 	voClocks.clear();
@@ -61,8 +75,6 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 	bool advanceNext = false;
 	EventLabel* prevVolint = nullptr;
 
-	llvm::outs() << "\n";
-
 	for (auto &lab : thread) {
 		// VC already calculated for this event, skip
 		if (!voClocks[lab.get()].empty()) {
@@ -85,8 +97,8 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
 		bool isRelaxed =
 			memLab && (
-			lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic ||
-			lab.get()->getOrdering() == llvm::AtomicOrdering::NotAtomic
+				lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic ||
+				lab.get()->getOrdering() == llvm::AtomicOrdering::NotAtomic
 			);
 		
 		if (isRelaxed) {
@@ -156,8 +168,6 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			lastCommonView = currentVoView;
 			lastPerLocView.clear();
 		}
-
-		llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
 
 		if (lab.get() == halt) return;
 	}
@@ -236,6 +246,60 @@ std::unordered_map<EventLabel*, View> SimpleCalculator::applyLinearisation(std::
 	}
 
 	return linVoClocks;
+}
+
+std::unordered_map<SAddr, std::vector<EventLabel*>> SimpleCalculator::getAccessesPerLoc(std::unordered_map<EventLabel*, View> linVoClocks) {
+	std::unordered_map<SAddr, std::vector<EventLabel*>> accessesPerLoc;
+
+	for (auto labAndView : linVoClocks) {
+		auto memLab = dynamic_cast<MemAccessLabel*>(labAndView.first);
+		if (memLab) {
+            accessesPerLoc[memLab->getAddr()].push_back(memLab);
+		}
+	}
+
+	return accessesPerLoc;
+}
+
+bool SimpleCalculator::isConsistent(
+	std::vector<EventLabel*> memAccesses,
+	std::unordered_map<EventLabel*, View> linVoClocks)
+{
+	auto &g = getGraph();
+
+	for (size_t i = 0; i < memAccesses.size(); ++i) {
+        EventLabel* labA = memAccesses[i];
+		auto writeLabA = dynamic_cast<WriteLabel*>(labA);
+		if (!writeLabA) continue;
+        const View& viewA = linVoClocks[labA];
+
+        for (size_t j = 0; j < memAccesses.size(); ++j) {
+            if (i == j) continue;
+
+            EventLabel* labB = memAccesses[j];
+            const View& viewB = linVoClocks[labB];
+
+            if (isViewGreater(viewB, viewA)) {
+                llvm::outs() << labA->getPos() << " -vo-> " << labB->getPos() << "\n";
+
+				//auto writeLabB = dynamic_cast<WriteLabel*>(labB);
+
+				auto readLabB = dynamic_cast<ReadLabel*> (labB);
+
+				if (readLabB) {
+					auto rfWrite = readLabB->getRf();
+					if (rfWrite.isInitializer()) continue;
+					auto rfWriteLab = g.getWriteLabel(rfWrite);
+					if (isViewSmaller(linVoClocks[rfWriteLab], linVoClocks[labA])) {
+						llvm::outs() << "Inconsistent cojom edge: " << rfWrite << " -> " << labA->getPos() << "\n";
+						return false;
+					}
+				}
+            }
+        }
+    }
+
+	return true;
 }
 
 bool SimpleCalculator::isFence(EventLabel *lab) {

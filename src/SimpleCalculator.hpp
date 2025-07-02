@@ -63,6 +63,10 @@ private:
 	void addToLinearisations(EventLabel* lab, EventLabel* synchLab);
 	std::unordered_map<EventLabel*, View> applyLinearisation(std::vector<EventLabel*> lin);
 
+	std::unordered_map<SAddr, std::vector<EventLabel*>> getAccessesPerLoc(std::unordered_map<EventLabel*, View> voClocks);
+
+	bool isConsistent(std::vector<EventLabel*> memAccesses, std::unordered_map<EventLabel*, View> voClocks);
+
 	bool isFence(EventLabel *lab);
 
 	bool isViewGreater(View a, View b);
