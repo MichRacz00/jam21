@@ -22,39 +22,51 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 
 	calcClocks();
 
-	for (auto l : linearisations) {
-		// TODO: remove
-		/*
-		llvm::outs() << "linearisation: ";
-		for (auto lab : l) {
-			llvm::outs() << lab->getPos();
+	if (linearisations.size() > 0) {
+		for (auto l : linearisations) {
+			// TODO: remove
+			llvm::outs() << "linearisation: ";
+			for (auto lab : l) {
+				llvm::outs() << lab->getPos();
+			}
+			llvm::outs() << "\n";
+
+
+			auto linVoClocks = applyLinearisation(l);
+			auto accessesPerLoc = getAccessesPerLoc(linVoClocks);
+
+			auto consistent = true;
+			for (auto addrAndAccesses : accessesPerLoc) {
+				// TODO: remove
+				//llvm::outs() << addrAndAccesses.first << "\n";
+				consistent = isConsistent(addrAndAccesses.second, linVoClocks);
+				if (!consistent) break;
+			}
+
+			if (consistent) return Calculator::CalculationResult(false, true);
+
+			// TODO: remove
+			for (auto labAndClock : linVoClocks) {
+				llvm::outs() << labAndClock.first->getPos() << " " << labAndClock.second << "\n";
+			}
 		}
-		llvm::outs() << "\n";
-		*/
-
-		auto linVoClocks = applyLinearisation(l);
-		auto accessesPerLoc = getAccessesPerLoc(linVoClocks);
-
+	} else {
+		auto accessesPerLoc = getAccessesPerLoc(voClocks);
 		for (auto addrAndAccesses : accessesPerLoc) {
-			llvm::outs() << addrAndAccesses.first << "\n";
-			auto consistent = isConsistent(addrAndAccesses.second, linVoClocks);
-			if (!consistent) return Calculator::CalculationResult(false, false);
+			// TODO: remove
+			//llvm::outs() << addrAndAccesses.first << "\n";
+			auto consistent = isConsistent(addrAndAccesses.second, voClocks);
+			if (consistent) return Calculator::CalculationResult(false, true);
 		}
-
-		// TODO: remove
-		/*
-		for (auto labAndClock : linVoClocks) {
-			llvm::outs() << labAndClock.first->getPos() << " " << labAndClock.second << "\n";
-		}
-		*/
-		
 	}
+
+	
 
 	voClocks.clear();
 	pushtoSynchpoints.clear();
 	linearisations.clear();
 
-	return Calculator::CalculationResult(false, true);
+	return Calculator::CalculationResult(false, false);
 }
 
 void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
@@ -280,20 +292,22 @@ bool SimpleCalculator::isConsistent(
             const View& viewB = linVoClocks[labB];
 
             if (isViewGreater(viewB, viewA)) {
-                llvm::outs() << labA->getPos() << " -vo-> " << labB->getPos() << "\n";
-
-				//auto writeLabB = dynamic_cast<WriteLabel*>(labB);
+				// TODO remove
+                //llvm::outs() << labA->getPos() << " -vo-> " << labB->getPos() << "\n";
 
 				auto readLabB = dynamic_cast<ReadLabel*> (labB);
 
 				if (readLabB) {
 					auto rfWrite = readLabB->getRf();
-					if (rfWrite.isInitializer()) continue;
-					auto rfWriteLab = g.getWriteLabel(rfWrite);
-					if (isViewSmaller(linVoClocks[rfWriteLab], linVoClocks[labA])) {
-						llvm::outs() << "Inconsistent cojom edge: " << rfWrite << " -> " << labA->getPos() << "\n";
+					//if (rfWrite.isInitializer()) continue;
+					auto rfLab = g.getEventLabel(rfWrite);
+					if (isViewSmaller(linVoClocks[rfLab], linVoClocks[labA])) {
+						// TODO remove;
+						llvm::outs() << "Inconsistent cojom edge: " << rfWrite << " -> " << labB->getPos() << "\n";
 						return false;
 					}
+
+					llvm::outs() << labA->getPos() << " -> " << rfWrite << "\n";
 				}
             }
         }
