@@ -22,6 +22,20 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 
 	calcClocks();
 
+	for (auto l : linearisations) {
+		llvm::outs() << "linearisation: ";
+		for (auto lab : l) {
+			llvm::outs() << lab->getPos();
+		}
+		llvm::outs() << "\n";
+
+		auto linVoClocks = applyLinearisation(l);
+
+		for (auto labAndClock : linVoClocks) {
+			llvm::outs() << labAndClock.first->getPos() << " " << labAndClock.second << "\n";
+		}
+	}
+
 	voClocks.clear();
 	pushtoSynchpoints.clear();
 	linearisations.clear();
@@ -190,14 +204,34 @@ void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab
 			if (!valid) continue;
 
     		newLinearisations.push_back(newLin);
-
-			for (auto lab : newLin) {
-				llvm::outs() << lab->getPos();
-			}
-			llvm::outs() << "\n";
 		}
 	}
 	linearisations = newLinearisations;
+}
+
+std::unordered_map<EventLabel*, View> SimpleCalculator::applyLinearisation(std::vector<EventLabel*> lin) {
+	auto linVoClocks = voClocks;
+	
+	for (auto it = lin.begin() + 1; it != lin.end(); ++it) {
+		EventLabel* prevLab = *(it - 1);
+		EventLabel* linLab = *it;
+
+		auto synchClock = linVoClocks[prevLab];
+		synchClock[prevLab->getThread()] ++;
+		auto synchPoint = pushtoSynchpoints[linLab];
+
+		// Update all clocks in VO with synchPoint
+		for (auto labAndClock : linVoClocks) {
+			if (isViewGreater(labAndClock.second, linVoClocks[synchPoint])) {
+				linVoClocks[labAndClock.first] = labAndClock.second.update(synchClock);
+			}
+		}
+
+		// Update the synch point clock
+		linVoClocks[synchPoint].update(synchClock);
+	}
+
+	return linVoClocks;
 }
 
 bool SimpleCalculator::isFence(EventLabel *lab) {

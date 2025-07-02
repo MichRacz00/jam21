@@ -61,6 +61,7 @@ private:
 	void calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt);
 
 	void addToLinearisations(EventLabel* lab, EventLabel* synchLab);
+	std::unordered_map<EventLabel*, View> applyLinearisation(std::vector<EventLabel*> lin);
 
 	bool isFence(EventLabel *lab);
 
