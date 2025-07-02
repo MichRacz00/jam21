@@ -20,16 +20,22 @@ void SimpleCalculator::removeAfter(const VectorClock &preds)
 
 Calculator::CalculationResult SimpleCalculator::doCalc() {
 
+	voClocks.clear();
+	pushtoSynchpoints.clear();
+	linearisations.clear();
+
 	calcClocks();
 
 	if (linearisations.size() > 0) {
 		for (auto l : linearisations) {
 			// TODO: remove
+			/*
 			llvm::outs() << "linearisation: ";
 			for (auto lab : l) {
 				llvm::outs() << lab->getPos();
 			}
 			llvm::outs() << "\n";
+			*/
 
 			auto linVoClocks = applyLinearisation(l);
 			auto accessesPerLoc = getAccessesPerLoc(linVoClocks);
@@ -40,7 +46,6 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 				if (!consistent) break;
 			}
 			if (consistent) return Calculator::CalculationResult(false, true);
-
 		}
 
 	} else {
@@ -52,13 +57,6 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 			if (consistent) return Calculator::CalculationResult(false, true);
 		}
 	}
-
-	voClocks.clear();
-	pushtoSynchpoints.clear();
-	linearisations.clear();
-
-	// TODO remove
-	llvm::outs() << "Inconsistent!\n\n";
 
 	return Calculator::CalculationResult(false, false);
 }
@@ -171,6 +169,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			for (auto pair : lastPerLocView) {
 				currentVoView.update(pair.second);
 			}
+			//currentVoView.update(lastCommonView);
 			lastCommonView = currentVoView;
 			lastPerLocView.clear();
 		}
@@ -296,7 +295,7 @@ bool SimpleCalculator::isConsistent(
 
 					if (isViewSmaller(linVoClocks[rfLab], linVoClocks[labA])) {
 						// TODO remove;
-						llvm::outs() << "Inconsistent cojom edge: " << labA->getPos() << " -vo-> " << labB->getPos() << " <-rf- " << rfLab->getPos() << "\n";
+						//llvm::outs() << "Inconsistent cojom edge: " << labA->getPos() << " -vo-> " << labB->getPos() << " <-rf- " << rfLab->getPos() << "\n";
 						return false;
 					}
 				}
