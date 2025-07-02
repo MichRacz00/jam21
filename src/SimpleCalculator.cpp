@@ -22,8 +22,6 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 
 	calcClocks();
 
-	llvm::outs() << linearisations.size() << "\n";
-
 	voClocks.clear();
 	pushtoSynchpoints.clear();
 	linearisations.clear();
@@ -49,7 +47,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 	bool advanceNext = false;
 	EventLabel* prevVolint = nullptr;
 
-	//llvm::outs() << "\n";
+	llvm::outs() << "\n";
 
 	for (auto &lab : thread) {
 		// VC already calculated for this event, skip
@@ -121,6 +119,9 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 				addToLinearisations(lab.get(), lab.get());
 				prevVolint = nullptr;
 			}
+
+			advanceNow = true;
+			advanceNext = true;
 		}
 		
 		if (advanceNow == true) currentVoView[tid] ++;
@@ -138,7 +139,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			lastPerLocView.clear();
 		}
 
-		//llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
+		llvm::outs() << lab.get()->getPos() << voClocks[lab.get()] << "\n";
 
 		if (lab.get() == halt) return;
 	}
@@ -146,7 +147,7 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 
 void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab) {
 	pushtoSynchpoints[lab] = synchLab;
-	
+
 	// If there are no linearisations, trivially create the single one
 	if (linearisations.empty()) {
 		std::vector<EventLabel*> lin;
@@ -189,6 +190,11 @@ void SimpleCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab
 			if (!valid) continue;
 
     		newLinearisations.push_back(newLin);
+
+			for (auto lab : newLin) {
+				llvm::outs() << lab->getPos();
+			}
+			llvm::outs() << "\n";
 		}
 	}
 	linearisations = newLinearisations;
