@@ -31,25 +31,18 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 			}
 			llvm::outs() << "\n";
 
-
 			auto linVoClocks = applyLinearisation(l);
 			auto accessesPerLoc = getAccessesPerLoc(linVoClocks);
 
 			auto consistent = true;
 			for (auto addrAndAccesses : accessesPerLoc) {
-				// TODO: remove
-				//llvm::outs() << addrAndAccesses.first << "\n";
 				consistent = isConsistent(addrAndAccesses.second, linVoClocks);
 				if (!consistent) break;
 			}
-
 			if (consistent) return Calculator::CalculationResult(false, true);
 
-			// TODO: remove
-			for (auto labAndClock : linVoClocks) {
-				llvm::outs() << labAndClock.first->getPos() << " " << labAndClock.second << "\n";
-			}
 		}
+
 	} else {
 		auto accessesPerLoc = getAccessesPerLoc(voClocks);
 		for (auto addrAndAccesses : accessesPerLoc) {
@@ -60,11 +53,12 @@ Calculator::CalculationResult SimpleCalculator::doCalc() {
 		}
 	}
 
-	
-
 	voClocks.clear();
 	pushtoSynchpoints.clear();
 	linearisations.clear();
+
+	// TODO remove
+	llvm::outs() << "Inconsistent!\n\n";
 
 	return Calculator::CalculationResult(false, false);
 }
@@ -291,23 +285,20 @@ bool SimpleCalculator::isConsistent(
             EventLabel* labB = memAccesses[j];
             const View& viewB = linVoClocks[labB];
 
-            if (isViewGreater(viewB, viewA)) {
+            if (isViewSmaller(viewA, viewB)) {
 				// TODO remove
                 //llvm::outs() << labA->getPos() << " -vo-> " << labB->getPos() << "\n";
 
 				auto readLabB = dynamic_cast<ReadLabel*> (labB);
-
 				if (readLabB) {
 					auto rfWrite = readLabB->getRf();
-					//if (rfWrite.isInitializer()) continue;
 					auto rfLab = g.getEventLabel(rfWrite);
+
 					if (isViewSmaller(linVoClocks[rfLab], linVoClocks[labA])) {
 						// TODO remove;
-						llvm::outs() << "Inconsistent cojom edge: " << rfWrite << " -> " << labB->getPos() << "\n";
+						llvm::outs() << "Inconsistent cojom edge: " << labA->getPos() << " -vo-> " << labB->getPos() << " <-rf- " << rfLab->getPos() << "\n";
 						return false;
 					}
-
-					llvm::outs() << labA->getPos() << " -> " << rfWrite << "\n";
 				}
             }
         }
