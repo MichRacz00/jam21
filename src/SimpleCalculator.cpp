@@ -132,6 +132,19 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 			currentVoView[writeLab->getThread()] ++;
 		}
 
+		
+		auto joinLab = dynamic_cast<ThreadJoinLabel*>(lab.get());
+		if (joinLab) {
+			auto joinTid = joinLab->getChildId();
+			auto &joinThread = g.getThreadList()[joinTid];
+			auto &joinThreadLab = joinThread.back();
+			if (voClocks[joinThreadLab.get()].empty()) {
+				calcClocks(joinThread, joinThreadLab.get());
+			}
+			currentVoView.update(voClocks[joinThreadLab.get()]);
+			currentVoView[joinTid] ++;
+		}
+		
 		// ra and svo
 		if (lab.get()->getOrdering() == llvm::AtomicOrdering::Release
 			|| lab.get()->getOrdering() == llvm::AtomicOrdering::Acquire
