@@ -129,7 +129,6 @@ void SimpleCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* ha
 				calcClocks(g.getThreadList()[writeLab->getThread()], writeLab);
 			}
 			currentVoView.update(voClocks[writeLab]);
-			currentVoView[writeLab->getThread()] ++;
 		}
 
 		
@@ -298,8 +297,6 @@ bool SimpleCalculator::isConsistent(
             const View& viewB = linVoClocks[labB];
 
             if (isViewSmaller(viewA, viewB)) {
-				// TODO remove
-                //llvm::outs() << labA->getPos() << " -vo-> " << labB->getPos() << "\n";
 
 				auto readLabB = dynamic_cast<ReadLabel*> (labB);
 				if (readLabB) {
@@ -307,9 +304,9 @@ bool SimpleCalculator::isConsistent(
 					auto rfLab = g.getEventLabel(rfWrite);
 
 					if (isViewSmaller(linVoClocks[rfLab], linVoClocks[labA])) {
-						// TODO remove;
-						//llvm::outs() << "Inconsistent cojom edge: " << labA->getPos() << " -vo-> " << labB->getPos() << " <-rf- " << rfLab->getPos() << "\n";
-						return false;
+						if (!rfLab->getPos().isInitializer()) {
+							return false;
+						}
 					}
 				}
             }
