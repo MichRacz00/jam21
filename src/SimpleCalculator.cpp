@@ -304,9 +304,7 @@ bool SimpleCalculator::isConsistent(
 					auto rfLab = g.getEventLabel(rfWrite);
 
 					if (isViewSmaller(linVoClocks[rfLab], linVoClocks[labA])) {
-						if (!rfLab->getPos().isInitializer()) {
-							return false;
-						}
+						return false;
 					}
 				}
             }
