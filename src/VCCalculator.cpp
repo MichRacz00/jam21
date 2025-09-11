@@ -1,0 +1,523 @@
+ #include "VCCalculator.hpp"
+#include "Error.hpp"
+#include "ExecutionGraph.hpp"
+#include "GraphIterators.hpp"
+#include <map>
+#include <deque>
+
+void VCCalculator::initCalc()
+{
+	// Relations are calculated from scratch everytime doCalc()
+	// is called, nothing to do on init
+	return;
+}
+
+Calculator::CalculationResult VCCalculator::doCalc() {
+	resetViews();
+
+	std::vector<Event> allLabels;
+	for (auto lab : labels(getGraph())) {
+		allLabels.push_back(lab->getPos());
+	}
+	
+	calcHB();
+
+	auto &g = getGraph();
+
+	llvm::outs() << linearisations.size() << "\n";
+
+	for (auto l : linearisations) {
+		Calculator::GlobalRelation c(allLabels);
+		cojom = c;
+		std::unordered_map<EventLabel*, View> cleanHbClocks (hbClocks);
+		std::unordered_map<EventLabel*, View> updatedHbClocks (hbClocks);
+
+		
+		for (auto e : l) {
+			llvm::outs() << e->getPos();
+		}
+		llvm::outs() << "\n";
+		
+
+		for (size_t i = 0; i < l.size() - 1; ++i) {
+    		auto init = l[i];
+    		auto final = l[i + 1];
+
+			auto pushtoView = View(hbClocks[init]);
+			pushtoView[init->getThread()] += 1;
+
+    		updateHBClockChain(updatedHbClocks, final, pushtoView);
+		}
+
+		hbClocks = updatedHbClocks;
+
+		calcMO();
+		calcMObyFR();
+
+		for (auto a : moClocks) {
+			llvm::outs() << a.first->getPos() << " " << a.second << "\n";
+		}
+
+		cojom.transClosure();
+		if (cojom.isIrreflexive()) {
+			return Calculator::CalculationResult(false, true);
+		}
+		hbClocks = cleanHbClocks;
+	}
+
+	if (linearisations.size() == 0) {
+		Calculator::GlobalRelation c(allLabels);
+		cojom = c;
+
+		calcMO();
+		calcMObyFR();
+
+		cojom.transClosure();
+		if (cojom.isIrreflexive()) {
+			return Calculator::CalculationResult(false, true);
+		}
+	}
+
+	return Calculator::CalculationResult(false, false);
+}
+
+void VCCalculator::addToLinearisation(EventLabel* e) {
+	if (linearisations.empty()) {
+		std::vector<EventLabel*> l;
+		l.push_back(e);
+		linearisations.push_back(l);
+		return;
+	}
+
+	std::vector<std::vector<EventLabel*>> newLinearisations;
+
+	while (!linearisations.empty()) {
+		std::vector<EventLabel*> linearisation = std::move(linearisations.back());
+		linearisations.pop_back();
+		std::vector<EventLabel*> restLinearisation;
+
+		// Add trivial linearisation - addition of event at the very back
+		// Cannot violate po U rf as this would not be accepted in GenMC
+		auto newLinearisation = linearisation;
+		newLinearisation.push_back(e);
+		//newLinearisations.push_back(newLinearisation);
+
+		auto previousPoRfView = View();
+		auto increasingLinearisation = true;
+		for (auto l : newLinearisation) {
+			if (isViewStrictlySmaller(l->getPorfView(), previousPoRfView)) {
+				increasingLinearisation = false;
+				break;
+			}
+			previousPoRfView = l->getPorfView();
+		}
+
+		if (increasingLinearisation) {
+			newLinearisations.push_back(newLinearisation);
+		}
+
+		while(!linearisation.empty()) {
+			auto linearisedEvent = std::move(linearisation.back());
+
+			restLinearisation.push_back(linearisedEvent);
+			linearisation.pop_back();
+
+			// Encountered event in po U rf, no more valid linearisations will be created
+			if (isViewStrictlyGreater(e->getPorfView(), linearisedEvent->getPorfView())) {
+				break;
+			}
+
+			std::vector<EventLabel*> newLinearisation;
+
+			// add all events before e
+			for (auto l : linearisation) {
+   				newLinearisation.push_back(l);
+			}
+
+			// insert e
+			newLinearisation.push_back(e);
+
+			// add all events after e
+			for (auto it = restLinearisation.rbegin(); it != restLinearisation.rend(); ++it) {
+				newLinearisation.push_back(*it);
+			}
+
+			auto previousPoRfView = View();
+			auto increasingLinearisation = true;
+			for (auto l : newLinearisation) {
+				if (isViewStrictlySmaller(l->getPorfView(), previousPoRfView)) {
+					increasingLinearisation = false;
+					break;
+				}
+				previousPoRfView = l->getPorfView();
+			}
+
+			if (increasingLinearisation) {
+				newLinearisations.push_back(newLinearisation);
+			}
+		}
+	}
+
+	linearisations = newLinearisations;
+}
+
+void VCCalculator::removeAfter(const VectorClock &preds)
+{
+	/* We do not track anything specific */
+	return;
+}
+
+bool VCCalculator::addMOedge(EventLabel* from, EventLabel* to) {
+	if (!from || !to) {
+		llvm::errs() << "addMOedge error: null EventLabel\n";
+		return false;
+	}
+
+	if (moClocks.find(from) == moClocks.end()) {
+    	moClocks[from] = 1;
+	}
+
+	if (moClocks.find(to) == moClocks.end()) {
+		moClocks[to] = moClocks[from] + 1;
+	} else {
+		moClocks[to] = std::max(moClocks[to], moClocks[from] + 1);
+	}
+
+	return true;
+}
+
+void VCCalculator::calcHB() {
+	auto &g = getGraph();
+
+	for (auto &t : g.getThreadList()) {
+		calcHB(t, t.back().get());
+	}
+}
+
+void VCCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
+	auto &g = getGraph();
+	std::deque<EventLabel*> previousLabels;
+	std::unordered_map<SAddr, View> previousAccess;
+
+	auto firstThreadEvent = thread.front().get();
+	auto const tid = firstThreadEvent->getThread();
+	auto firstThreadEventLab = dynamic_cast<ThreadStartLabel*>(firstThreadEvent);
+	auto threadCreateEvent = g.getEventLabel(firstThreadEventLab->getParentCreate());
+
+	// Copy HB vector clock from event that created this thread
+	// Advance HB by one in this thread to indicate the thread
+	// has started
+	auto prevThreadClock = hbClocks[threadCreateEvent];
+	prevThreadClock[tid] += 1;
+	auto baseView = View(prevThreadClock);
+
+	std::unordered_map<SAddr, View> baseViews;
+
+	//llvm::outs() << " --- " << tid << " --- \n";
+
+    for (auto &lab : thread) {
+		// Keep track of 4 previous labels
+		// add current label for future reference
+		previousLabels.push_front(lab.get());
+		if (previousLabels.size() > 5) previousLabels.pop_back();
+
+		if (!hbClocks[previousLabels[0]].empty()) {
+			// VC is already calculated for this event, skip
+			continue;
+		}
+
+		if (previousLabels.size() >= 2) {
+			// Copy previous VC to this event
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], baseView);
+		}
+
+		auto labRead = dynamic_cast<ReadLabel*>(lab.get());
+		if (labRead) {
+			// Read event, get VC from write
+			auto labRf = g.getEventLabel(labRead->getRf());
+			auto rfTid = labRf->getThread();
+
+			if (hbClocks[labRf].empty()) {
+				// Write VC not yet calculated, calculate it and return
+				
+				//llvm::outs() << " --- to thread " << rfTid << " --- \n";
+				calcHB(g.getThreadList()[rfTid], g.getEventLabel(labRead->getRf()));
+				//llvm::outs() << " --- return --- \n";
+			}
+
+			// Merge read and write VCs related by RF
+			hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], hbClocks[labRf]);
+			hbClocks[previousLabels[0]][rfTid] += 1;
+		}
+
+		// Memory access, advance VC by at least one from last access to this location
+		// in this thread (po-loc)
+		
+		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		calcIntraThreadHB(lab.get(), previousLabels);
+
+		if (memAccessLab) {
+			auto previousAccessView = baseViews[memAccessLab->getAddr()];
+			hbClocks[previousLabels[0]] = mergeViews(previousAccessView, hbClocks[previousLabels[0]]);
+			baseViews[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
+		}
+
+		//llvm::outs() << previousLabels[0]->getPos() << " " << hbClocks[previousLabels[0]] << "\n";
+		if (previousLabels[0] == halt) {
+			// Reached the last event specified, end calculations
+			//llvm::outs() << " --- halt --- \n";
+			return;
+		}
+    }
+}
+
+void VCCalculator::calcIntraThreadHB(EventLabel* lab, std::deque<EventLabel*> previousLabels) {
+	auto tid = lab->getThread();
+
+	if (previousLabels.size() >= 2 && previousLabels[1]->isSC() && previousLabels[0]->isSC()) {
+		auto const prevHbClock = hbClocks[previousLabels[1]];
+		auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
+		currentHbClock[tid] += 1;
+		hbClocks[previousLabels[0]] = currentHbClock;
+		domainPushto.push_back(previousLabels[1]);
+		addToLinearisation(previousLabels[1]);
+	}
+
+	if (previousLabels.size() >= 3 && previousLabels[1]->isSC() && isFence(previousLabels[1])) {
+		// Advance by 2 to account for a possibly HB ordered intermediate event
+		auto const prevHbClock = hbClocks[previousLabels[2]];
+		auto currentHbClock = View(prevHbClock);
+		currentHbClock[tid] += 2;
+		hbClocks[previousLabels[0]] = currentHbClock;
+		domainPushto.push_back(previousLabels[2]);
+		addToLinearisation(previousLabels[2]);
+	}
+
+	if (previousLabels.size() >= 3 && (previousLabels[1]->isAtLeastAcquire() || previousLabels[1]->isAtLeastRelease())) {
+		// Advance by 2 to account for a possibly HB ordered intermediate event
+		auto const prevHbClock = hbClocks[previousLabels[2]];
+		auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
+		currentHbClock[tid] += 2;
+		hbClocks[previousLabels[0]] = currentHbClock;
+	}
+
+	if (previousLabels.size() >= 4 &&
+		previousLabels[1]->getOrdering() == llvm::AtomicOrdering::Release && isFence(previousLabels[1]) &&
+		previousLabels[3]->getOrdering() == llvm::AtomicOrdering::Acquire && isFence(previousLabels[3]) &&
+		(dynamic_cast<WriteLabel*>(previousLabels[2]) || dynamic_cast<ReadLabel*>(previousLabels[2]))) {
+
+			auto const prevHbClock = hbClocks[previousLabels[4]];
+			auto currentHbClock = mergeViews(hbClocks[previousLabels[0]], prevHbClock);
+			currentHbClock[tid] += 4;
+			hbClocks[previousLabels[0]] = currentHbClock;
+	}
+}
+
+View VCCalculator::mergeViews(const View a, const View b) {
+	auto max_size = std::max(a.size(), b.size());
+    View mergedView;
+	
+    for (unsigned int i = 0; i < max_size; ++i) {
+        mergedView[i] = std::max(a[i], b[i]);
+    }
+
+	return mergedView;
+}
+
+void VCCalculator::calcMObyFR() {
+	auto &g = getGraph();
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
+
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+                return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
+    });
+
+	for (auto pair : sortedHbClocks) {
+		auto writeAccess = dynamic_cast<WriteLabel*>(pair.first);
+		if (!writeAccess) continue;
+
+		//llvm::outs() << pair.first->getPos() << hbClocks[pair.first] << "\n";
+
+		for (auto nextPair : sortedHbClocks) {
+			if (!isViewStrictlyGreater(hbClocks[nextPair.first], hbClocks[pair.first])) continue;
+			if (!(hbClocks[pair.first][pair.first->getThread()] < hbClocks[nextPair.first][pair.first->getThread()])) continue;
+			if (nextPair.first->getPos().isInitializer()) continue;
+
+			//llvm::outs() << "	" << nextPair.first->getPos() << hbClocks[nextPair.first] << "\n";
+
+			auto readAccess = dynamic_cast<ReadLabel*>(nextPair.first);
+			if (readAccess && readAccess->getAddr() == writeAccess->getAddr()) {
+				auto writeRf = readAccess->getRf();
+				auto writeRfLabel = g.getWriteLabel(writeRf);
+
+				if (writeRf == writeAccess->getPos()) continue;
+
+				if (writeRf.isInitializer()) {
+					cojom.addEdge(writeAccess->getPos(), writeRf);
+					addMOedge(writeAccess, writeRfLabel);
+					//llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
+					break;
+				} else if (writeRfLabel && writeRfLabel->getAddr() == writeAccess->getAddr()) {
+					cojom.addEdge(writeAccess->getPos(), writeRf);
+					addMOedge(writeAccess, writeRfLabel);
+					//llvm::outs() << writeAccess->getPos() << " -mo-(rf)-> " << writeRf << "\n\n";
+					return;
+				}
+			}
+		}
+	}
+}
+
+void VCCalculator::calcMO() {
+	auto &g = getGraph();
+	std::unordered_map<SAddr, std::set<WriteLabel*>> previousWrites;
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(hbClocks.begin(), hbClocks.end());
+
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+                return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
+    });
+
+	for (auto pair : sortedHbClocks) {
+    	auto const writeAccess = dynamic_cast<WriteLabel*>(pair.first);
+		auto const readAccess = dynamic_cast<ReadLabel*>(pair.first);
+
+		if (writeAccess) {
+			auto const addr = writeAccess->getAddr();
+
+			for (auto it = previousWrites[addr].begin(); it != previousWrites[addr].end(); ) {
+				auto previousWrite = *it;
+				if (previousWrite == writeAccess) { ++it; continue; }
+
+				if (isViewStrictlyGreater(hbClocks[writeAccess], hbClocks[previousWrite])) {
+
+					if (previousWrites.find(addr) == previousWrites.end()) {
+						previousWrites[addr] = std::set<WriteLabel*> {writeAccess};
+						//mo[addr] = std::vector<WriteLabel*> {writeAccess};
+					}
+
+					//mo[addr].push_back(writeAccess);
+					cojom.addEdge(previousWrite->getPos(), writeAccess->getPos());
+					addMOedge(previousWrite, writeAccess);
+				}
+
+				++it;
+			}
+			
+			if (previousWrites[addr].empty()) {
+				cojom.addEdge(writeAccess->getPos().getInitializer(), writeAccess->getPos());
+				addMOedge(g.getEventLabel(writeAccess->getPos().getInitializer()), writeAccess);
+			}
+
+			previousWrites[addr].insert(writeAccess);
+		}
+	}
+}
+
+bool VCCalculator::isViewStrictlyGreater(View a, View b) {
+	int size = std::max(a.size(), b.size());
+	bool strictlyGreaterFound = false;
+
+	for (int i = 0; i < size; i ++) {
+        if (a[i] < b[i]) {
+			return false; // a is not greater at this index
+		} else if (a[i] > b[i]) {
+			strictlyGreaterFound = true;
+		}
+    }
+
+    return strictlyGreaterFound;
+}
+
+bool VCCalculator::isViewStrictlySmaller(View a, View b) {
+	int size = std::max(a.size(), b.size());
+	bool strictlySmallerFound = false;
+
+	for (int i = 0; i < size; i ++) {
+        if (a[i] > b[i]) {
+			return false;
+		} else if (a[i] < b[i]) {
+			strictlySmallerFound = true;
+		}
+    }
+
+    return strictlySmallerFound;
+}
+
+void VCCalculator::updateHBClockChain(std::unordered_map<EventLabel*, View> &newHbClock, EventLabel* start, View newView) {
+	auto &g = getGraph();
+	std::vector<std::pair<EventLabel*, View>> sortedHbClocks(newHbClock.begin(), newHbClock.end());
+
+	std::sort(sortedHbClocks.begin(), sortedHbClocks.end(),
+    [](const auto& lhs, const auto& rhs) {
+        const View& a = lhs.second;
+        const View& b = rhs.second;
+
+        size_t size = std::max(a.size(), b.size());
+
+        for (size_t i = 0; i < size; ++i) {
+            auto aVal = (i < a.size()) ? a[i] : 0;
+            auto bVal = (i < b.size()) ? b[i] : 0;
+
+            if (aVal != bVal)
+				return aVal < bVal; // ascending sort
+        }
+
+        return false; // equal views
+    });
+
+	//llvm::outs() << "\n";
+
+	for (auto pair : sortedHbClocks) {
+		if ((!isViewStrictlyGreater(hbClocks[pair.first], hbClocks[start]) && start != pair.first)) continue;
+		newHbClock[pair.first] = mergeViews(newView, newHbClock[pair.first]);
+	}
+}
+
+bool VCCalculator::isFence(EventLabel *lab) {
+	switch (lab->getKind())
+	{
+		case EventLabel::EL_Fence:
+		case EventLabel::EL_DskFsync:
+		case EventLabel::EL_DskSync:
+		case EventLabel::EL_DskPbarrier:
+			return true;
+		default:
+			return false;
+	}
+}
+
+void VCCalculator::resetViews() {
+	hbClocks.clear();
+	moClocks.clear();
+	corr.clear();
+	domainPushto.clear();
+	linearisations.clear();
+}

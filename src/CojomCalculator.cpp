@@ -36,6 +36,7 @@ bool CojomCalculator::isCojomAcyclic() {
 
 	// Calculate acyclicity for each linearisation of push
 	auto pushtos = calcAllLinearisations(push);
+
 	for (auto pushto : pushtos) {
 
 		// Calculate VVO relation

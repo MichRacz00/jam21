@@ -31,15 +31,6 @@ Calculator::CalculationResult HBCalculator::doCalc() {
 
 	auto &g = getGraph();
 
-	int eventNum = 0;
-	for (auto& t : g.getThreadList()) {
-    	for (auto& e : t) {
-        	eventNum += 1;
-    	}
-	}
-	llvm::outs() << eventNum << ", " << pushtos.size() << "\n";
-	eventNum = 0;
-
 	for (auto p : pushtos) {
 		Calculator::GlobalRelation c(allLabels);
 		cojom = c;
@@ -155,16 +146,6 @@ void HBCalculator::calcHB(ExecutionGraph::Thread &thread, EventLabel* halt) {
 		// in this thread (po-loc)
 		
 		auto const memAccessLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		/*
-		if (memAccessLab) {
-			if (previousAccess.find(memAccessLab->getAddr()) != previousAccess.end()) {
-				hbClocks[previousLabels[0]] = mergeViews(hbClocks[previousLabels[0]], previousAccess[memAccessLab->getAddr()]);
-				if (hbClocks[previousLabels[0]] <= previousAccess[memAccessLab->getAddr()]) {
-					hbClocks[previousLabels[0]][tid] += 1;
-				}
-			}
-			previousAccess[memAccessLab->getAddr()] = hbClocks[previousLabels[0]];
-		}*/
 
 		calcIntraThreadHB(lab.get(), previousLabels);
 

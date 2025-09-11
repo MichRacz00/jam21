@@ -52,7 +52,9 @@ clModelType(llvm::cl::values(
 		    clEnumValN(ModelType::imm,  "imm",  "IMM memory model"),
 		    clEnumValN(ModelType::lkmm, "lkmm", "LKMM memory model"),
 			clEnumValN(ModelType::jam21, "jam21", "JAM21 memory model"),
-			clEnumValN(ModelType::jam21vc, "jam21vc", "JAM21 memory model implemented with vector clock")
+			clEnumValN(ModelType::jam21vc, "jam21vc", "JAM21 memory model implemented with vector clocks"),
+			clEnumValN(ModelType::jam21fullvc, "jam21fullvc", "JAM21 memory model implemented exclusively with vector clocks"),
+			clEnumValN(ModelType::jam21simple, "jam21simple", "JAM21 with simplified vector clocks")
 		    ),
 	    llvm::cl::cat(clGeneral),
 	    llvm::cl::init(ModelType::rc11),
