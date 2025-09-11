@@ -29,6 +29,7 @@
 #include "JAM21VCDriver.hpp"
 #include "JAM21SimpleDriver.hpp"
 #include "JAM21VCFullDriver.hpp"
+#include "JAM21GraphDriver.hpp"
 #include <llvm/IR/Module.h>
 
 class DriverFactory {
@@ -65,6 +66,9 @@ class DriverFactory {
 			break;
 		case ModelType::jam21simple:
 			driver = new JAM21SimpleDriver(std::move(conf), std::forward<Ts>(params)...);
+			break;
+		case ModelType::jam21graph:
+			driver = new JAM21GraphDriver(std::move(conf), std::forward<Ts>(params)...);
 			break;
 		default:
 			BUG();
