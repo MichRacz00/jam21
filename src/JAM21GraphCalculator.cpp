@@ -20,136 +20,49 @@ void JAM21GraphCalculator::removeAfter(const VectorClock &preds)
 
 Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 
+	auto &g = getGraph();
+
+	std::vector<Event> allLabels;
+	for (auto lab : labels(getGraph())) {
+		allLabels.push_back(lab->getPos());
+	}
+	Calculator::GlobalRelation newVo(allLabels);
+	vo = newVo;
+
+	calcClocks();
+
 	return Calculator::CalculationResult(false, false);
 }
 
 void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 
-	// Setting up initial vector clock
-	auto const firstEvent = thread.front().get();
-	auto const tid = firstEvent->getThread();
-	auto firstLab = dynamic_cast<ThreadStartLabel*>(firstEvent);
-	auto threadCreateEvent = g.getEventLabel(firstLab->getParentCreate());
-	auto threadCreateClock = voClocks[threadCreateEvent];
-
-	// Setting up last views
-	auto currentVoView = View(threadCreateClock);
-	View lastCommonView = currentVoView;
-	std::unordered_map<SAddr, View> lastPerLocView;
-	
-	bool advanceNext = false;
-	EventLabel* prevVolint = nullptr;
+	EventLabel* lastSc = nullptr;
 
 	for (auto &lab : thread) {
-		// VC already calculated for this event, skip
-		if (!voClocks[lab.get()].empty()) {
-			if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent
-				&& !isFence(lab.get())) {
-				// maintain knowledge of previous SC access even without calculating VCs
-				prevVolint = lab.get();
+		if (lab.get()->getIndex() == 0) continue;
+		if (lab == thread.back()) break;
+
+		EventLabel* prevLab = g.getPreviousLabel(lab.get());
+		EventLabel* nextLab = g.getNextLabel(lab.get());
+
+		if (lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease()) {
+			vo.addEdge(prevLab->getPos(), nextLab->getPos());
+
+			if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
+				if (isFence(lab.get())) {
+					pushtoSynchpoints[lab.get()] = lab.get();
+					domainSpushVolint.push_back(lab.get());
+				} else if (lastSc) {
+					pushtoSynchpoints[lastSc] = lab.get();
+					domainSpushVolint.push_back(lastSc);
+				}
+				lastSc = lab.get();
 			}
-			continue;
 		}
-
-		// If previous iteration requested VC advancment of the next VC
-		bool advanceNow = false;
-		if (advanceNext == true) {
-			advanceNext = false;
-			advanceNow = true;
-		}
-
-		// isRelaxed is true if lab is a relaxed memory access
-		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
-		bool isRelaxed =
-			memLab && (
-				lab.get()->getOrdering() == llvm::AtomicOrdering::Monotonic ||
-				lab.get()->getOrdering() == llvm::AtomicOrdering::NotAtomic
-			);
-		
-		if (isRelaxed) {
-			auto addr = memLab->getAddr();
-			auto it = lastPerLocView.find(addr);
-
-			if (it == lastPerLocView.end()) {
-				// memory location was not yet accessed since last synchronization
-				currentVoView = lastCommonView;
-			} else {
-				// there was already an access to this memory location
-				currentVoView = lastPerLocView[addr];
-			}
-
-			advanceNow = true;
-		}
-
-		// Merge VC of the incoming RF edge
-		auto readLab = dynamic_cast<ReadLabel*>(lab.get());
-		if (readLab) {
-			auto writeLab = g.getEventLabel(readLab->getRf());
-			// The VC for RF write not yet calculated, calculate it now
-			if (voClocks[writeLab].empty()) {
-				calcClocks(g.getThreadList()[writeLab->getThread()], writeLab);
-			}
-			currentVoView.update(voClocks[writeLab]);
-		}
-
-		
-		auto joinLab = dynamic_cast<ThreadJoinLabel*>(lab.get());
-		if (joinLab) {
-			auto joinTid = joinLab->getChildId();
-			auto &joinThread = g.getThreadList()[joinTid];
-			auto &joinThreadLab = joinThread.back();
-			if (voClocks[joinThreadLab.get()].empty()) {
-				calcClocks(joinThread, joinThreadLab.get());
-			}
-			currentVoView.update(voClocks[joinThreadLab.get()]);
-			currentVoView[joinTid] ++;
-		}
-		
-		// ra and svo
-		if (lab.get()->getOrdering() == llvm::AtomicOrdering::Release
-			|| lab.get()->getOrdering() == llvm::AtomicOrdering::Acquire
-			|| lab.get()->getOrdering() == llvm::AtomicOrdering::AcquireRelease)
-		{
-			advanceNow = true;
-			advanceNext = true;
-		}
-
-		// Collect synchpoints for pushto relation, add event to linearisations
-		if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
-			if (prevVolint != nullptr) {
-				addToLinearisations(prevVolint, lab.get());
-			}
-
-			prevVolint = lab.get();
-
-			if(isFence(lab.get())) {
-				addToLinearisations(lab.get(), lab.get());
-				prevVolint = nullptr;
-			}
-
-			advanceNow = true;
-			advanceNext = true;
-		}
-		
-		if (advanceNow == true) currentVoView[tid] ++;
-		voClocks[lab.get()] = currentVoView;
-
-		if (isRelaxed) {
-			// Relaxed memory access, store vo view per location
-			lastPerLocView[memLab->getAddr()] = currentVoView;
-		} else {
-			// Synchronization, merge all relaxed per loc vo views
-			for (auto pair : lastPerLocView) {
-				currentVoView.update(pair.second);
-			}
-			//currentVoView.update(lastCommonView);
-			lastCommonView = currentVoView;
-			lastPerLocView.clear();
-		}
-
-		if (lab.get() == halt) return;
 	}
+
+	llvm::outs() << vo;
 }
 
 void JAM21GraphCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab) {

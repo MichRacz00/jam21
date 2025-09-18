@@ -42,8 +42,12 @@ public:
 	}
 
 private:
+	Calculator::GlobalRelation vo;
+
 	std::unordered_map<EventLabel*, View> voClocks;
 	std::unordered_map<EventLabel*, EventLabel*> pushtoSynchpoints;
+	std::vector<EventLabel*> domainSpushVolint;
+
 	std::vector<std::vector<EventLabel*>> linearisations;
 
 	void calcClocks() {
