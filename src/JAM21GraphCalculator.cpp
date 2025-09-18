@@ -37,7 +37,8 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
 	auto &g = getGraph();
 
-	EventLabel* lastSc = nullptr;
+	std::unordered_map<SAddr, EventLabel*> lastAccessPerLoc;
+	EventLabel* lastSc = g.getEventLabel(Event::getInitializer());
 
 	for (auto &lab : thread) {
 		if (lab.get()->getIndex() == 0) continue;
@@ -48,6 +49,7 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 
 		if (lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease()) {
 			vo.addEdge(prevLab->getPos(), nextLab->getPos());
+			lastAccessPerLoc.clear();
 
 			if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
 				if (isFence(lab.get())) {
@@ -59,6 +61,17 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 				}
 				lastSc = lab.get();
 			}
+		}
+		
+		auto memLab = dynamic_cast<MemAccessLabel*>(lab.get());
+		if (memLab && memLab->getOrdering() == llvm::AtomicOrdering::Monotonic) {
+			SAddr addr = memLab->getAddr();
+			if (lastAccessPerLoc.find(addr) != lastAccessPerLoc.end()) {
+				vo.addEdge(lastAccessPerLoc[addr]->getPos(), memLab->getPos());
+			} else {
+				vo.addEdge(lastSc->getPos(), memLab->getPos());
+			}
+			lastAccessPerLoc[addr] = memLab;
 		}
 	}
 
