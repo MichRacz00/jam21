@@ -31,7 +31,7 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 
 	calcClocks();
 
-	return Calculator::CalculationResult(false, false);
+	return Calculator::CalculationResult(true, false);
 }
 
 void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
@@ -42,7 +42,6 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 
 	for (auto &lab : thread) {
 		if (lab.get()->getIndex() == 0) continue;
-		if (lab == thread.back()) break;
 
 		EventLabel* prevLab = g.getPreviousLabel(lab.get());
 
@@ -71,6 +70,14 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 				vo.addEdge(lastSc->getPos(), memLab->getPos());
 			}
 			lastAccessPerLoc[addr] = memLab;
+		}
+
+		auto readLab = dynamic_cast<ReadLabel*>(lab.get());
+		if (readLab) {
+			auto rf = readLab->getRf();
+			if (!rf.isInitializer()) {
+				vo.addEdge(rf, lab.get()->getPos());
+			}
 		}
 	}
 
