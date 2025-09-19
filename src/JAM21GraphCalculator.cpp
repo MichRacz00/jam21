@@ -45,17 +45,16 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 		if (lab == thread.back()) break;
 
 		EventLabel* prevLab = g.getPreviousLabel(lab.get());
-		EventLabel* nextLab = g.getNextLabel(lab.get());
 
 		if (lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease()) {
-			vo.addEdge(prevLab->getPos(), nextLab->getPos());
+			vo.addEdge(prevLab->getPos(), lab.get()->getPos());
 			lastAccessPerLoc.clear();
 
 			if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
 				if (isFence(lab.get())) {
 					pushtoSynchpoints[lab.get()] = lab.get();
 					domainSpushVolint.push_back(lab.get());
-				} else if (lastSc) {
+				} else {
 					pushtoSynchpoints[lastSc] = lab.get();
 					domainSpushVolint.push_back(lastSc);
 				}
