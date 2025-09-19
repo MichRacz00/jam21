@@ -30,6 +30,15 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 	vo = newVo;
 
 	calcClocks();
+	auto lins = calculateLinearisations();
+
+	llvm::outs() << vo;
+	for (auto l : lins) {
+		for (auto lab : l) {
+			llvm::outs() << lab->getPos();
+		}
+		llvm::outs() << "\n";
+	}
 
 	return Calculator::CalculationResult(true, false);
 }
@@ -80,58 +89,46 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 			}
 		}
 	}
-
-	llvm::outs() << vo;
 }
 
-void JAM21GraphCalculator::addToLinearisations(EventLabel* lab, EventLabel* synchLab) {
-	pushtoSynchpoints[lab] = synchLab;
+std::vector<std::vector<EventLabel*>> JAM21GraphCalculator::calculateLinearisations() {
+	std::vector<std::vector<EventLabel*>> res;
 
-	// If there are no linearisations, trivially create the single one
-	if (linearisations.empty()) {
-		std::vector<EventLabel*> lin;
-		linearisations.push_back(lin);
+	std::vector<Event> domain;
+	for (auto pair : pushtoSynchpoints) {
+		domain.push_back(pair.first->getPos());
 	}
+	Calculator::GlobalRelation dom(domain);
 
-	std::vector<std::vector<EventLabel*>> newLinearisations;
-	while (!linearisations.empty()) {
-		std::vector<EventLabel*> lin = std::move(linearisations.back());
-		linearisations.pop_back();
-	
-		EventLabel* prevLab = nullptr;
-		for (size_t i = 0; i <= lin.size(); ++i) {
-    		std::vector<EventLabel*> newLin;
+	dom.allTopoSort([this, &res](auto& sort) {
+		auto &g = getGraph();
 
-    		// Add all events before the insertion point
-			bool valid = true;
-    		for (size_t j = 0; j < i; ++j) {
-				if (isViewGreater(lin[j]->getPorfView(), lab->getPorfView())) {
-					valid = false;
-					break;
+		for (int i = 0; i < sort.size(); i++) {
+			auto lab = g.getEventLabel(sort[i]);
+
+			for (int j = i + 1; j < sort.size(); j ++) {
+				auto nextLab = g.getEventLabel(sort[j]);
+
+				bool concurent = !(lab->getPorfView() <= nextLab->getPorfView())
+							&& !(nextLab->getPorfView() <= lab->getPorfView());
+				if (concurent) continue;
+
+				if (nextLab->getPorfView() <= lab->getPorfView()) {
+					return false;
 				}
-        		newLin.push_back(lin[j]);
-    		}
-
-			if (!valid) continue;
-
-    		// Insert the new event at position i
-    		newLin.push_back(lab);
-
-    		// Add all remaining events from position i onwards
-    		for (size_t j = i; j < lin.size(); ++j) {
-				if (isViewSmaller(lin[j]->getPorfView(), lab->getPorfView())) {
-					valid = false;
-					break;
-				}
-        		newLin.push_back(lin[j]);
-    		}
-
-			if (!valid) continue;
-
-    		newLinearisations.push_back(newLin);
+			}
 		}
-	}
-	linearisations = newLinearisations;
+
+		std::vector<EventLabel*> newSort;
+		for (auto e : sort) {
+			newSort.push_back(g.getEventLabel(e));
+		}
+		res.push_back(newSort);
+
+		return false; // Allways return false to keep finding all possible topological orderings
+    });
+
+	return res;
 }
 
 std::unordered_map<EventLabel*, View> JAM21GraphCalculator::applyLinearisation(std::vector<EventLabel*> lin) {
