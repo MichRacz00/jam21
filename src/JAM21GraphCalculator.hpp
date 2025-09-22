@@ -66,8 +66,8 @@ private:
 
 	std::vector<std::vector<EventLabel*>> calculateLinearisations();
 	std::unordered_map<EventLabel*, View> applyLinearisation(std::vector<EventLabel*> lin);
-
-	std::unordered_map<SAddr, std::vector<EventLabel*>> getAccessesPerLoc(std::unordered_map<EventLabel*, View> voClocks);
+	
+	std::unordered_map<SAddr, Calculator::GlobalRelation>  getVoPerLoc(GlobalRelation vo);
 
 	bool isConsistent(std::vector<EventLabel*> memAccesses, std::unordered_map<EventLabel*, View> voClocks);
 

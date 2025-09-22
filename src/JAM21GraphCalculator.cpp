@@ -32,15 +32,22 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 	calcClocks();
 	auto lins = calculateLinearisations();
 
-	llvm::outs() << vo;
-	for (auto l : lins) {
-		for (auto lab : l) {
-			llvm::outs() << lab->getPos();
+	for (auto lin : lins) {
+		auto copyVo = vo;
+		for (int i = 0; i < lin.size() - 1; i ++) {
+			copyVo.addEdge(lin[i]->getPos(), pushtoSynchpoints[lin[i + 1]]->getPos());
+		}
+		copyVo.transClosure();
+		auto voPerLoc = getVoPerLoc(copyVo);
+
+		for (auto pair : voPerLoc) {
+			pair.second.transClosure();
+			llvm::outs() << pair.second.isIrreflexive();
 		}
 		llvm::outs() << "\n";
 	}
 
-	return Calculator::CalculationResult(true, false);
+	return Calculator::CalculationResult(false, false);
 }
 
 void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel* halt) {
@@ -156,17 +163,33 @@ std::unordered_map<EventLabel*, View> JAM21GraphCalculator::applyLinearisation(s
 	return linVoClocks;
 }
 
-std::unordered_map<SAddr, std::vector<EventLabel*>> JAM21GraphCalculator::getAccessesPerLoc(std::unordered_map<EventLabel*, View> linVoClocks) {
-	std::unordered_map<SAddr, std::vector<EventLabel*>> accessesPerLoc;
+std::unordered_map<SAddr, Calculator::GlobalRelation> JAM21GraphCalculator::getVoPerLoc(GlobalRelation vo) {
+	std::unordered_map<SAddr, GlobalRelation> voPerLoc;
+	auto &g = getGraph();
 
-	for (auto labAndView : linVoClocks) {
-		auto memLab = dynamic_cast<MemAccessLabel*>(labAndView.first);
-		if (memLab) {
-            accessesPerLoc[memLab->getAddr()].push_back(memLab);
+	std::vector<Event> allLabels;
+	for (auto lab : labels(getGraph())) {
+		allLabels.push_back(lab->getPos());
+	}
+	Calculator::GlobalRelation newVo(allLabels);
+
+	for (auto a : vo.getElems()) {
+		for (auto b : vo.getElems()) {
+			if (vo(a, b)) {
+				auto memA = dynamic_cast<MemAccessLabel*>(g.getEventLabel(a));
+				auto memB = dynamic_cast<MemAccessLabel*>(g.getEventLabel(b));
+				if (memA && memB && memA->getAddr() == memB->getAddr()) {
+					if (voPerLoc.find(memA->getAddr()) == voPerLoc.end()) {
+						Calculator::GlobalRelation newRel(allLabels);
+						voPerLoc[memA->getAddr()] = newRel;
+					}
+					voPerLoc[memA->getAddr()].addEdge(a, b);
+				}
+			}
 		}
 	}
 
-	return accessesPerLoc;
+	return voPerLoc;
 }
 
 bool JAM21GraphCalculator::isConsistent(
