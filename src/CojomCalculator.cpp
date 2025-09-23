@@ -52,7 +52,7 @@ bool CojomCalculator::isCojomAcyclic() {
 		
 		//llvm::outs() << getGraph();
 		//llvm::outs() << cojom;
-		//llvm::outs() << "================================================================================================================\n";
+		//llvm::outs() << "==============================\n";
 
 		// Calculate acyclicity of cojom by taking transitive closure
 		// and checking for irreflexivity

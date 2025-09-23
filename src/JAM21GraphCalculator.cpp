@@ -31,6 +31,8 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 
 	calcClocks();
 	auto lins = calculateLinearisations();
+	llvm::outs() << getGraph();
+	llvm::outs() << vo;
 
 	for (auto lin : lins) {
 		auto copyVo = vo;
@@ -40,9 +42,15 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 		copyVo.transClosure();
 		auto voPerLoc = getVoPerLoc(copyVo);
 
+		for (auto l : lin) {
+			llvm::outs() << l->getPos();
+		}
+		llvm::outs() << "\n";
+
 		for (auto pair : voPerLoc) {
-			pair.second.transClosure();
-			llvm::outs() << pair.second.isIrreflexive();
+			//pair.second.transClosure();
+			llvm::outs() << isConsistent(pair.second);
+			llvm::outs() << pair.second;
 		}
 		llvm::outs() << "\n";
 	}
@@ -57,12 +65,25 @@ void JAM21GraphCalculator::calcClocks(ExecutionGraph::Thread &thread, EventLabel
 	EventLabel* lastSc = g.getEventLabel(Event::getInitializer());
 
 	for (auto &lab : thread) {
+		auto threadStartLab = dynamic_cast<ThreadStartLabel*>(lab.get());
+		if (threadStartLab) {
+			vo.addEdge(threadStartLab->getParentCreate(), threadStartLab->getPos());
+		}
+
+		if (dynamic_cast<ThreadStartLabel*>(lab.get())) {
+			vo.addEdge(lab.get()->getPos(), g.getNextLabel(lab.get())->getPos());
+		}
+
 		if (lab.get()->getIndex() == 0) continue;
 
 		EventLabel* prevLab = g.getPreviousLabel(lab.get());
 
 		if (lab.get()->isAtLeastAcquire() || lab.get()->isAtLeastRelease()) {
 			vo.addEdge(prevLab->getPos(), lab.get()->getPos());
+
+			for (auto pair : lastAccessPerLoc) {
+				vo.addEdge(pair.second->getPos(), lab.get()->getPos());
+			}
 			lastAccessPerLoc.clear();
 
 			if (lab.get()->getOrdering() == llvm::AtomicOrdering::SequentiallyConsistent) {
@@ -192,40 +213,24 @@ std::unordered_map<SAddr, Calculator::GlobalRelation> JAM21GraphCalculator::getV
 	return voPerLoc;
 }
 
-bool JAM21GraphCalculator::isConsistent(
-	std::vector<EventLabel*> memAccesses,
-	std::unordered_map<EventLabel*, View> linVoClocks)
-{
+bool JAM21GraphCalculator::isConsistent(GlobalRelation vo) {
 	auto &g = getGraph();
 
-	for (size_t i = 0; i < memAccesses.size(); ++i) {
-        EventLabel* labA = memAccesses[i];
-		auto writeLabA = dynamic_cast<WriteLabel*>(labA);
-		if (!writeLabA) continue;
-        const View& viewA = linVoClocks[labA];
+	for (auto a : vo.getElems()) {
+		for (auto b : vo.getElems()) {
+			if (!vo(a, b)) continue;
+			if (a.isInitializer() || b.isInitializer()) continue;
 
-        for (size_t j = 0; j < memAccesses.size(); ++j) {
-            if (i == j) continue;
+			auto readLab = g.getReadLabel(b);
+			if (readLab && readLab->getRf() != a) {
+				//llvm::outs() << a << " -+-> " << readLab->getRf() << "\n";
+				vo.addEdge(a, readLab->getRf());
+			}
+		}
+	}
 
-            EventLabel* labB = memAccesses[j];
-            const View& viewB = linVoClocks[labB];
-
-            if (isViewSmaller(viewA, viewB)) {
-
-				auto readLabB = dynamic_cast<ReadLabel*> (labB);
-				if (readLabB) {
-					auto rfWrite = readLabB->getRf();
-					auto rfLab = g.getEventLabel(rfWrite);
-
-					if (isViewSmaller(linVoClocks[rfLab], linVoClocks[labA])) {
-						return false;
-					}
-				}
-            }
-        }
-    }
-
-	return true;
+	vo.transClosure();
+	return vo.isIrreflexive();
 }
 
 bool JAM21GraphCalculator::isFence(EventLabel *lab) {
