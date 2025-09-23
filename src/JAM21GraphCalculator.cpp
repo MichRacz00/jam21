@@ -31,28 +31,32 @@ Calculator::CalculationResult JAM21GraphCalculator::doCalc() {
 
 	calcClocks();
 	auto lins = calculateLinearisations();
-	llvm::outs() << getGraph();
-	llvm::outs() << vo;
 
 	for (auto lin : lins) {
 		auto copyVo = vo;
-		for (int i = 0; i < lin.size() - 1; i ++) {
-			copyVo.addEdge(lin[i]->getPos(), pushtoSynchpoints[lin[i + 1]]->getPos());
+
+		if (lin.size() > 1) {
+			for (int i = 0; i < lin.size() - 1; i ++) {
+				copyVo.addEdge(lin[i]->getPos(), pushtoSynchpoints[lin[i + 1]]->getPos());
+			}
 		}
+		
 		copyVo.transClosure();
 		auto voPerLoc = getVoPerLoc(copyVo);
 
-		for (auto l : lin) {
-			llvm::outs() << l->getPos();
-		}
-		llvm::outs() << "\n";
+		bool consistent = true;
 
 		for (auto pair : voPerLoc) {
-			//pair.second.transClosure();
-			llvm::outs() << isConsistent(pair.second);
-			llvm::outs() << pair.second;
+			pair.second.transClosure();
+			if (!isConsistent(pair.second)) {
+				consistent = false;
+				break;
+			}
 		}
-		llvm::outs() << "\n";
+
+		if (consistent) {
+			return CalculationResult(false, true);
+		}
 	}
 
 	return Calculator::CalculationResult(false, false);
@@ -223,7 +227,6 @@ bool JAM21GraphCalculator::isConsistent(GlobalRelation vo) {
 
 			auto readLab = g.getReadLabel(b);
 			if (readLab && readLab->getRf() != a) {
-				//llvm::outs() << a << " -+-> " << readLab->getRf() << "\n";
 				vo.addEdge(a, readLab->getRf());
 			}
 		}
